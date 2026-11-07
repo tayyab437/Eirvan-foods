@@ -1,0 +1,6 @@
+{
+  "name": "Eirvan Foods - Natural Goodness",
+  "description": "Pakistan's premier dry fruits and superfoods brand featuring single-origin nuts, artisan dry fruit powders, bespoke gift boxes, and nationwide COD delivery.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

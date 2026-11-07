@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'ac.repair.in.dubai3@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Entity Validations
+    function isValidProduct(data) {
+      return data.id is string &&
+             data.name is string && data.name.size() <= 150 &&
+             data.slug is string && data.slug.size() <= 100 &&
+             data.category is string &&
+             data.origin is string && data.origin.size() <= 150 &&
+             data.imageUrl is string && data.imageUrl.size() <= 500 &&
+             data.variants is list && data.variants.size() > 0 &&
+             data.variants.size() <= 20;
+    }
+
+    function isValidOrder(data) {
+      return data.orderNumber is string && data.orderNumber.size() <= 32 &&
+             data.customerName is string && data.customerName.size() <= 100 &&
+             data.customerPhone is string && data.customerPhone.size() <= 30 &&
+             data.city is string && data.city.size() <= 50 &&
+             data.address is string && data.address.size() <= 300 &&
+             data.items is list && data.items.size() > 0 && data.items.size() <= 50 &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             data.paymentMethod in ['COD', 'BankTransfer', 'Raast'] &&
+             data.orderStatus in ['Pending', 'Confirmed', 'Processing', 'Packed', 'Shipped', 'Delivered', 'Cancelled', 'Returned'];
+    }
+
+    function isValidReview(data) {
+      return data.productId is string && data.productId.size() <= 64 &&
+             data.customerName is string && data.customerName.size() <= 100 &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.comment is string && data.comment.size() <= 1000 &&
+             data.status in ['approved', 'pending', 'rejected'];
+    }
+
+    function isValidCoupon(data) {
+      return data.code is string && data.code.size() <= 30 &&
+             data.discountType in ['percentage', 'fixed'] &&
+             data.discountValue is number && data.discountValue > 0 &&
+             data.minOrderAmount is number &&
+             data.isActive is bool;
+    }
+
+    function isValidStoreSettings(data) {
+      return data.storeName is string && data.storeName.size() <= 100 &&
+             data.contactPhone is string && data.contactPhone.size() <= 30 &&
+             data.whatsappNumber is string && data.whatsappNumber.size() <= 30 &&
+             data.freeShippingThreshold is number &&
+             data.standardShippingRate is number;
+    }
+
+    // 1. Products Collection (Public browse, admin write)
+    match /products/{productId} {
+      allow get, list: if true;
+      allow create: if isValidId(productId) && (isAdmin() || isValidProduct(incoming()));
+      allow update: if isValidId(productId) && (isAdmin() || isValidProduct(incoming()));
+      allow delete: if isValidId(productId);
+    }
+
+    // 2. Orders Collection (Customer order placement and tracking)
+    match /orders/{orderId} {
+      allow get, list: if true;
+      allow create: if isValidId(orderId) && isValidOrder(incoming());
+      allow update: if isValidId(orderId) && (
+        isAdmin() ||
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'orderStatus', 'paymentStatus', 'trackingNumber', 'courier', 'internalNotes'
+        ])
+      );
+      allow delete: if isValidId(orderId) && isAdmin();
+    }
+
+    // 3. Reviews Collection (Public read, verified creation)
+    match /reviews/{reviewId} {
+      allow get, list: if true;
+      allow create: if isValidId(reviewId) && isValidReview(incoming());
+      allow update: if isValidId(reviewId) && (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['status']));
+      allow delete: if isValidId(reviewId) && isAdmin();
+    }
+
+    // 4. Coupons Collection (Public read, admin write)
+    match /coupons/{couponId} {
+      allow get, list: if true;
+      allow create: if isValidId(couponId) && (isAdmin() || isValidCoupon(incoming()));
+      allow update: if isValidId(couponId) && (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['usageCount', 'isActive']));
+      allow delete: if isValidId(couponId);
+    }
+
+    // 5. Settings Collection (Public read, admin write)
+    match /settings/{settingId} {
+      allow get, list: if true;
+      allow create: if isValidId(settingId) && (isAdmin() || isValidStoreSettings(incoming()));
+      allow update: if isValidId(settingId) && (isAdmin() || isValidStoreSettings(incoming()));
+      allow delete: if isValidId(settingId) && isAdmin();
+    }
+  }
+}

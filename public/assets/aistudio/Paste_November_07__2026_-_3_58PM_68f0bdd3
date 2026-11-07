@@ -1,0 +1,1262 @@
+# MASTER PROMPT: PREMIUM DRY FRUITS E-COMMERCE PLATFORM
+
+## 1. Project Vision
+
+Act as a world-class team consisting of:
+
+- Senior E-commerce Product Architect
+- Principal UI/UX Designer
+- Human-Computer Interaction (HCI) Specialist
+- Conversion Rate Optimization (CRO) Expert
+- Senior PHP/MySQL Developer
+- Technical SEO Specialist
+- Cybersecurity Engineer
+- Quality Assurance Engineer
+
+Your task is to plan, architect, design, develop, test and deliver a complete, production-ready e-commerce website for a premium dry fruits and healthy food business.
+
+This is not a basic online store, a generic Shopify clone, or a simple product catalog.
+
+Build a sophisticated, highly usable, visually exceptional, scalable e-commerce experience that makes purchasing products effortless.
+
+### Business model
+
+The business initially sells:
+
+- Mixed dry fruits
+- Premium dry fruit combinations
+- Dry fruit powders
+- Almonds
+- Cashews
+- Pistachios
+- Walnuts
+- Raisins
+- Dates
+- Other individual dry fruits
+- Customized dry fruit gift boxes
+- Healthy snack combinations
+
+The platform must support expansion into additional food categories without requiring architectural changes.
+
+### Primary market
+
+Pakistan initially.
+
+Configure the platform for:
+- Pakistani Rupees (PKR).
+- Pakistan-based customers.
+- Pakistani mobile number formats.
+- Local delivery addresses.
+- Cash on Delivery (COD).
+- Bank transfer.
+- Optional online payment gateway integration.
+- Configurable shipping charges.
+- City-based and nationwide delivery rules.
+
+Build the architecture so international selling can be introduced later.
+
+---
+
+# 2. Technical Architecture – STRICT REQUIREMENTS
+
+The website must be completely custom-developed.
+
+### Required technology stack
+
+**Backend**
+- PHP 8.2 or newer.
+- MySQL 8 or compatible MySQL/MariaDB.
+- PDO for secure database interactions.
+- Organized MVC-inspired architecture.
+- REST-style endpoints where appropriate.
+
+**Frontend**
+- Semantic HTML5.
+- Modern CSS3.
+- Vanilla JavaScript (ES6+).
+- AJAX / Fetch API.
+- Responsive layouts.
+- CSS Grid and Flexbox.
+- Reusable components and design tokens.
+
+**Icons and visual assets**
+- Lucide icons or another consistent SVG icon system.
+- Optimized WebP/AVIF images.
+- Local fonts where appropriate.
+
+### Hosting restrictions
+
+The website will run on IONOS shared hosting.
+
+Therefore:
+
+- Do NOT use Node.js.
+- Do NOT use Next.js.
+- Do NOT use React.
+- Do NOT use Vue.
+- Do NOT use a separate frontend application.
+- Do NOT require a Node.js runtime.
+- Do NOT require Docker.
+- Do NOT require a separate backend server.
+- Do NOT require continuous background processes.
+- Do NOT require a complicated deployment pipeline.
+
+Do not introduce unnecessary dependencies.
+
+The entire application must be deployable through standard shared hosting using PHP, MySQL, Apache and .htaccess.
+
+Use Composer only where supported and genuinely necessary.
+
+All frontend assets must be served directly through the PHP application.
+
+The architecture must be maintainable, secure, modular and suitable for future growth.
+
+---
+
+# 3. UX/UI DESIGN PHILOSOPHY
+
+The design must follow established usability and human-computer interaction principles.
+
+Use Nielsen's 10 usability heuristics as a foundation.
+
+### Mandatory usability principles
+
+1. Visibility of system status: Always communicate loading, cart updates, successful actions, order progress and errors.
+2. Match between system and real world: Use familiar shopping language and recognizable food categories.
+3. User control and freedom: Allow users to edit carts, change quantities, remove products and return easily.
+4. Consistency and standards: Maintain consistent buttons, icons, navigation and interaction patterns.
+5. Error prevention: Prevent invalid quantities, unavailable purchases and incomplete checkout submissions.
+6. Recognition rather than recall: Display product details, prices, selected variants and cart contents clearly.
+7. Flexibility and efficiency: Support quick add-to-cart, search suggestions, product filters and repeat purchasing.
+8. Minimalist design: Avoid unnecessary elements, clutter, excessive popups and distracting animations.
+9. Error recovery: Explain errors in understandable language and provide actionable solutions.
+10. Help and documentation: Make delivery, returns, payment and customer support information accessible.
+
+### Accessibility requirements
+
+Target WCAG 2.2 AA.
+
+Implement:
+- Keyboard accessibility.
+- Visible focus states.
+- Appropriate color contrast.
+- Descriptive form labels.
+- Accessible navigation.
+- Screen-reader-friendly controls.
+- Alternative text for meaningful images.
+- Appropriate touch target sizes.
+- Clear validation messages.
+
+### Cognitive load reduction
+
+Customers should not have to think unnecessarily.
+
+Every important action should be obvious.
+
+Use:
+- Clear information hierarchy.
+- Short and meaningful labels.
+- Predictable navigation.
+- Grouped related information.
+- Progressive disclosure.
+- Simple checkout steps.
+- Consistent visual patterns.
+
+---
+
+# 4. BRAND IDENTITY AND VISUAL DIRECTION
+
+Create a premium, natural, sophisticated food-brand identity.
+
+The website should communicate:
+
+- Quality.
+- Freshness.
+- Natural ingredients.
+- Trust.
+- Premium packaging.
+- Health-conscious choices.
+- Professional customer service.
+
+### Suggested color palette
+
+Use a refined palette:
+
+- Primary: Deep forest green (#244C37).
+- Secondary: Warm cream (#F8F5ED).
+- Accent: Muted golden amber (#C99A45).
+- Supporting: Natural beige (#E8DDCA).
+- Text: Deep charcoal (#242821).
+- White: #FFFFFF.
+- Success: Accessible green.
+- Error: Accessible red.
+
+Do not use excessive gold, gradients, shadows or decorative effects.
+
+### Typography
+
+Use a professional typography system.
+
+Suggested:
+- Headings: DM Serif Display or Playfair Display.
+- Body: Inter or Manrope.
+
+Maintain:
+- Clear heading hierarchy.
+- Comfortable line heights.
+- Readable paragraph widths.
+- Consistent font weights.
+- Appropriate mobile typography.
+
+### Overall design
+
+The website should feel like a premium food-commerce brand.
+
+Avoid:
+- Generic template designs.
+- Excessive rounded cards.
+- Huge empty spaces.
+- Unnecessary animations.
+- Overcrowded product sections.
+- Inconsistent spacing.
+- Cheap-looking promotional banners.
+- Artificial-looking product images.
+
+Prioritize authentic, appetizing, high-quality product photography.
+
+---
+
+# 5. WEBSITE STRUCTURE AND INFORMATION ARCHITECTURE
+
+Build the following pages.
+
+## A. Homepage
+
+The homepage must function as a complete shopping and brand-discovery experience.
+
+### Section 1: Announcement bar
+
+A slim announcement bar displaying configurable messages such as:
+
+- Nationwide delivery available.
+- Free shipping above a configurable order value.
+- Special seasonal offers.
+
+Do not hardcode promotional claims.
+
+### Section 2: Main navigation
+
+Create a premium header with:
+
+- Brand logo.
+- Home.
+- Shop.
+- Dry Fruits.
+- Dry Fruit Powders.
+- Gift Boxes.
+- About Us.
+- Contact.
+- Search.
+- Account.
+- Shopping cart with live item count.
+
+The header should be responsive.
+
+On mobile, implement an accessible navigation drawer with clear categories and shopping shortcuts.
+
+Make the header sticky only if it improves usability without consuming excessive screen space.
+
+### Section 3: Hero area
+
+Create a visually striking hero section.
+
+Use:
+- High-quality dry fruit photography.
+- Strong headline.
+- Short supporting description.
+- Primary CTA: Shop Now.
+- Secondary CTA: Explore Products.
+
+The hero must communicate what the business sells within seconds.
+
+Avoid generic text.
+
+Use editable content from the administration panel.
+
+### Section 4: Shopping by category
+
+Display attractive category tiles:
+
+- Mixed Dry Fruits.
+- Dry Fruit Powders.
+- Premium Nuts.
+- Dates and Raisins.
+- Gift Boxes.
+
+Each tile should have:
+- Relevant photograph.
+- Clear category name.
+- Short description.
+- Direct navigation to the category.
+
+### Section 5: Best sellers
+
+Display real products from the database.
+
+Each product card should contain:
+
+- Product image.
+- Product name.
+- Price.
+- Previous price, when applicable.
+- Available weight options.
+- Genuine rating, if reviews exist.
+- Availability status.
+- Quick add-to-cart button.
+- Product details link.
+
+Make product cards visually clean and consistent.
+
+### Section 6: Why choose us?
+
+Communicate real business advantages.
+
+Examples of configurable benefits:
+
+- Carefully selected ingredients.
+- Quality-focused packaging.
+- Convenient ordering.
+- Nationwide delivery.
+- Customer support.
+
+Do not invent certifications, sourcing claims or quality guarantees.
+
+### Section 7: Featured products
+
+Create a separate curated product collection.
+
+### Section 8: Product benefits and education
+
+Introduce customers to:
+- Different dry fruit varieties.
+- Uses of dry fruit powders.
+- Storage recommendations.
+- Serving suggestions.
+- Product comparisons.
+
+Keep nutritional and health claims accurate and evidence-based.
+
+### Section 9: Promotional banner
+
+A configurable promotional section for seasonal offers, gift boxes or special bundles.
+
+### Section 10: Customer reviews
+
+Display verified customer reviews.
+
+Never generate fake testimonials or fabricated ratings.
+
+### Section 11: Frequently asked questions
+
+Answer common questions about:
+
+- Product quality.
+- Packaging.
+- Storage.
+- Weight options.
+- Delivery.
+- Payments.
+- Returns.
+- Order tracking.
+
+### Section 12: Newsletter
+
+Allow visitors to subscribe to promotional and educational updates.
+
+Use consent-based subscriptions.
+
+### Section 13: Footer
+
+Include:
+
+- Logo and brand description.
+- Quick navigation.
+- Product categories.
+- Customer support.
+- Shipping policy.
+- Return/refund policy.
+- Privacy policy.
+- Terms and conditions.
+- Contact details.
+- Social media links.
+- Copyright.
+
+---
+
+# 6. SHOPPING AND PRODUCT DISCOVERY
+
+The shopping experience must be exceptionally easy.
+
+### Shop page
+
+Create a complete product listing page with:
+
+- Product grid.
+- Search.
+- Category filtering.
+- Price filtering.
+- Availability filtering.
+- Sorting.
+- Pagination or efficient load-more functionality.
+
+Sorting options:
+- Featured.
+- Price: Low to High.
+- Price: High to Low.
+- Newest.
+- Best Selling.
+
+### Product search
+
+Implement a useful search experience.
+
+Requirements:
+
+- Search by product name.
+- Search by category.
+- Search by relevant keywords.
+- Autocomplete suggestions.
+- Clear search button.
+- Useful empty results state.
+
+### Product details page
+
+Every product should have a dedicated, SEO-friendly URL.
+
+Display:
+
+1. Product image gallery.
+2. Product name.
+3. Price.
+4. Discount information, if applicable.
+5. Weight/size selection.
+6. Stock availability.
+7. Quantity selector.
+8. Add to Cart.
+9. Buy Now.
+10. Product description.
+11. Ingredients.
+12. Storage instructions.
+13. Packaging information.
+14. Delivery information.
+15. Customer reviews.
+16. Related products.
+17. Recently viewed products.
+
+### Product variants
+
+The system must support different weights.
+
+For example:
+
+Mixed Dry Fruits:
+- 250g.
+- 500g.
+- 1kg.
+
+Dry Fruit Powder:
+- 100g.
+- 250g.
+- 500g.
+
+Each variant must have its own:
+
+- SKU.
+- Price.
+- Stock quantity.
+- Optional sale price.
+- Availability status.
+
+Changing the selected variant must update the price and availability immediately.
+
+Do not treat all variants as one stock quantity.
+
+---
+
+# 7. CART AND CHECKOUT EXPERIENCE
+
+Checkout is one of the most important conversion areas.
+
+Keep it extremely simple.
+
+### Shopping cart
+
+Implement:
+
+- Add product.
+- Remove product.
+- Increase/decrease quantity.
+- Change variants where appropriate.
+- Automatic subtotal calculation.
+- Shipping calculation.
+- Discount calculation.
+- Final payable amount.
+
+Persist the cart for returning customers where technically appropriate.
+
+Display clear feedback after adding an item.
+
+Avoid disruptive popup behavior.
+
+### Checkout
+
+Create a clean, mobile-first checkout.
+
+Collect:
+
+- Customer name.
+- Phone number.
+- Email (optional if not essential).
+- City.
+- Area/locality.
+- Complete delivery address.
+- Additional delivery instructions (optional).
+
+Payment methods:
+
+- Cash on Delivery.
+- Bank Transfer.
+- Online payment gateway when configured.
+
+Show a complete order summary before confirmation.
+
+### Checkout usability
+
+- Avoid unnecessary account creation.
+- Support guest checkout.
+- Validate fields inline.
+- Explain invalid information.
+- Preserve entered data if validation fails.
+- Display shipping charges before order submission.
+- Clearly show the final payable amount.
+- Prevent duplicate order submissions.
+
+### Order confirmation
+
+After successful placement:
+
+- Generate a unique order number.
+- Show order details.
+- Show payment method.
+- Show delivery address.
+- Display order status.
+- Provide customer support information.
+
+Provide a printable order summary.
+
+---
+
+# 8. CUSTOMER ACCOUNT SYSTEM
+
+Build an optional customer account system.
+
+Features:
+
+- Registration.
+- Login.
+- Secure logout.
+- Password reset.
+- Profile management.
+- Address management.
+- Order history.
+- Order details.
+- Order tracking.
+- Saved products.
+- Review submission for eligible purchases.
+
+Customers must be able to purchase without creating an account.
+
+Never store plaintext passwords.
+
+---
+
+# 9. POWERFUL ADMINISTRATION PANEL
+
+The administration panel is a critical part of this project.
+
+Build a separate, secure admin area.
+
+Example route:
+
+/admin
+
+It should have a professional, easy-to-use dashboard.
+
+### A. Dashboard
+
+Show real database statistics:
+
+- Total orders.
+- Today's orders.
+- Pending orders.
+- Completed orders.
+- Total revenue.
+- Monthly revenue.
+- Best-selling products.
+- Low-stock products.
+- Recent orders.
+
+Use charts where they genuinely improve understanding.
+
+### B. Product management
+
+Admin must be able to:
+
+- Create products.
+- Edit products.
+- Delete/archive products.
+- Upload multiple images.
+- Set product descriptions.
+- Manage categories.
+- Manage product variants.
+- Set prices.
+- Set sale prices.
+- Manage SKUs.
+- Update stock.
+- Mark featured products.
+- Publish/unpublish products.
+- Manage SEO metadata.
+
+### C. Inventory management
+
+Implement proper stock management.
+
+Requirements:
+
+- Variant-level stock tracking.
+- Stock reduction after successful order placement.
+- Stock restoration when appropriate cancellations occur.
+- Low-stock notifications.
+- Out-of-stock status.
+- Inventory adjustment history.
+- Prevention of overselling.
+
+Use database transactions for order and stock operations.
+
+### D. Order management
+
+Admin should be able to:
+
+- View all orders.
+- Search orders.
+- Filter by date.
+- Filter by status.
+- View customer information.
+- View purchased products.
+- Update order status.
+- Update payment status.
+- Add internal notes.
+- Print invoices.
+- Cancel orders.
+- Track order history.
+
+Order statuses:
+
+- Pending.
+- Confirmed.
+- Processing.
+- Packed.
+- Shipped.
+- Delivered.
+- Cancelled.
+- Returned.
+
+Implement a proper status transition system.
+
+### E. Customer management
+
+- View customers.
+- View order history.
+- Search by name or phone.
+- View customer details.
+- Manage customer accounts.
+
+### F. Discount management
+
+Support:
+
+- Coupon codes.
+- Percentage discounts.
+- Fixed discounts.
+- Minimum order requirements.
+- Start/end dates.
+- Usage limits.
+- Product/category restrictions.
+
+### G. Content management
+
+Admin should be able to manage:
+
+- Homepage hero.
+- Announcement bar.
+- Promotional banners.
+- Category descriptions.
+- FAQs.
+- About page.
+- Contact details.
+- Footer information.
+- Blog articles.
+
+### H. Reviews management
+
+- Approve reviews.
+- Reject inappropriate reviews.
+- Manage reported reviews.
+- Display verified-purchase labels.
+
+### I. Website settings
+
+Provide configuration for:
+
+- Business name.
+- Logo.
+- Contact number.
+- WhatsApp number.
+- Email.
+- Currency.
+- Shipping rates.
+- Free shipping threshold.
+- COD availability.
+- Payment instructions.
+- Social media links.
+- Business address.
+
+The administrator must not need to modify source code for routine business changes.
+
+---
+
+# 10. SHIPPING AND ORDER FULFILLMENT
+
+Create a configurable shipping system.
+
+Support:
+
+- Flat-rate shipping.
+- City-based shipping.
+- Weight-based shipping where required.
+- Free shipping thresholds.
+- Special delivery rules.
+
+Shipping costs must be calculated transparently.
+
+Provide order tracking information and customer notifications.
+
+Design the system so courier API integration can be added later.
+
+Do not pretend an order has shipped unless its status has actually been updated.
+
+---
+
+# 11. WHATSAPP INTEGRATION
+
+Integrate WhatsApp as a customer-support channel.
+
+Requirements:
+
+- Floating WhatsApp contact option.
+- Configurable business number.
+- Product inquiry shortcut.
+- Order support shortcut.
+- Pre-filled messages where useful.
+
+Do not make WhatsApp the only checkout method.
+
+Customers must be able to complete purchases directly on the website.
+
+---
+
+# 12. SEO AND ORGANIC GROWTH
+
+Implement technical SEO from the beginning.
+
+### On-page SEO
+
+- Unique title tags.
+- Meta descriptions.
+- Canonical URLs.
+- Proper heading structure.
+- Descriptive image alt text.
+- Internal linking.
+- SEO-friendly URLs.
+- Breadcrumb navigation.
+
+### Structured data
+
+Implement appropriate Schema.org markup:
+
+- Organization.
+- WebSite.
+- BreadcrumbList.
+- Product.
+- Offer.
+- AggregateRating only when genuine ratings exist.
+- Article for blog content.
+
+### Technical SEO
+
+- XML sitemap.
+- Robots.txt.
+- Canonical handling.
+- Correct HTTP status codes.
+- Redirect management.
+- Duplicate-content prevention.
+- Crawlable navigation.
+- Search-engine-friendly pagination.
+
+### Blog
+
+Build an integrated blog module.
+
+Support:
+
+- Categories.
+- Tags.
+- Featured images.
+- Author information.
+- Draft/published status.
+- Meta titles.
+- Meta descriptions.
+- Article schema.
+- Related articles.
+
+Potential content topics:
+
+- Benefits and uses of different dry fruits.
+- How to store dry fruits.
+- Mixed dry fruits buying guide.
+- How to use dry fruit powders.
+- Almonds vs cashews.
+- Healthy snack ideas.
+- Dry fruit gift ideas.
+
+Keep articles informational and avoid unsupported medical claims.
+
+---
+
+# 13. PERFORMANCE AND CORE WEB VITALS
+
+The website must be fast, particularly on mobile networks.
+
+Performance requirements:
+
+- Optimized image delivery.
+- Responsive image sizes.
+- Lazy loading below the fold.
+- Proper image dimensions.
+- Browser caching.
+- GZIP/Brotli where supported.
+- Minified production CSS and JavaScript.
+- Database query optimization.
+- Efficient indexes.
+- Pagination.
+- Minimal third-party scripts.
+- Avoid unnecessary libraries.
+
+Target:
+
+- Lighthouse Performance: 90+ where achievable.
+- Accessibility: 95+ where achievable.
+- Best Practices: 95+ where achievable.
+- SEO: 95+ where achievable.
+
+Core Web Vitals should be optimized against Google's current thresholds.
+
+Do not sacrifice usability or accessibility to achieve artificial performance scores.
+
+---
+
+# 14. SECURITY REQUIREMENTS
+
+Implement production-grade security practices.
+
+Mandatory:
+
+- PDO prepared statements.
+- Password hashing using PHP password_hash().
+- Secure session handling.
+- CSRF protection.
+- Output escaping.
+- Input validation.
+- File upload validation.
+- Restricted admin access.
+- Login rate limiting.
+- Secure cookies.
+- Session regeneration after authentication.
+- Protection against SQL injection.
+- Protection against XSS.
+- Protection against CSRF.
+- Secure password reset tokens.
+- Server-side price validation.
+- Server-side stock validation.
+- Secure order processing.
+- Appropriate security headers.
+
+Never trust prices, discounts, shipping charges or stock values submitted by the browser.
+
+Recalculate all order totals on the server.
+
+Never expose database credentials or secret keys in frontend files.
+
+Provide a secure configuration system.
+
+---
+
+# 15. DATABASE DESIGN
+
+Design a normalized and maintainable MySQL database.
+
+At minimum, consider these tables:
+
+1. users
+2. admin_users
+3. customers
+4. addresses
+5. categories
+6. products
+7. product_images
+8. product_variants
+9. inventory_movements
+10. orders
+11. order_items
+12. payments
+13. coupons
+14. coupon_usages
+15. reviews
+16. wishlists
+17. wishlist_items
+18. blog_posts
+19. blog_categories
+20. blog_tags
+21. faqs
+22. banners
+23. newsletter_subscribers
+24. settings
+25. order_status_history
+26. audit_logs
+
+Use:
+
+- Primary keys.
+- Foreign keys where supported.
+- Appropriate indexes.
+- Unique constraints.
+- Correct decimal types for money.
+- Timestamps.
+- Database transactions.
+
+Store historical product names, variant descriptions and prices in order items so old invoices remain accurate even after product changes.
+
+Provide complete SQL migrations or installation scripts.
+
+---
+
+# 16. PROJECT STRUCTURE
+
+Create a clean, maintainable project structure.
+
+A suggested structure:
+
+public_html/
+- index.php
+- .htaccess
+- assets/
+  - css/
+  - js/
+  - images/
+  - fonts/
+- uploads/
+
+app/
+- Controllers/
+- Models/
+- Services/
+- Middleware/
+- Helpers/
+- Views/
+  - layouts/
+  - components/
+  - pages/
+  - admin/
+
+config/
+- database.php
+- app.php
+
+routes/
+- web.php
+- admin.php
+
+database/
+- migrations/
+- seeds/
+
+storage/
+- logs/
+- cache/
+
+Do not expose sensitive directories publicly.
+
+The final structure must be adapted to the actual IONOS hosting environment.
+
+---
+
+# 17. CUSTOMER NOTIFICATIONS
+
+Implement an extensible notification system.
+
+Support email notifications for:
+
+- Order placed.
+- Order confirmed.
+- Order shipped.
+- Order delivered.
+- Order cancelled.
+- Password reset.
+
+Use configurable SMTP settings.
+
+Prepare optional WhatsApp Business API integration for future use.
+
+Do not claim messages have been sent when delivery has not been confirmed.
+
+---
+
+# 18. RESPONSIVE DESIGN
+
+Design and test all pages across:
+
+- Small mobile screens.
+- Standard smartphones.
+- Tablets.
+- Laptops.
+- Desktop monitors.
+
+Mobile is a priority, not an afterthought.
+
+On mobile:
+
+- Simplify navigation.
+- Maintain readable typography.
+- Keep buttons easy to tap.
+- Make product images prominent.
+- Keep checkout forms short.
+- Avoid horizontal overflow.
+- Use an intuitive cart experience.
+- Keep critical information visible.
+
+The shopping experience must remain excellent even on slower internet connections.
+
+---
+
+# 19. QUALITY ASSURANCE AND TESTING
+
+Do not consider the project complete merely because the homepage renders.
+
+Test the complete purchasing journey.
+
+### Functional testing
+
+- Registration and login.
+- Product creation.
+- Product editing.
+- Variant management.
+- Stock updates.
+- Search.
+- Filtering.
+- Sorting.
+- Cart operations.
+- Checkout validation.
+- Order placement.
+- Duplicate order prevention.
+- Payment status.
+- Order status changes.
+- Coupons.
+- Shipping calculations.
+- Customer order history.
+- Admin permissions.
+- Product reviews.
+- Blog publishing.
+
+### Security testing
+
+Test for common web application vulnerabilities, including:
+
+- SQL injection.
+- XSS.
+- CSRF.
+- Unauthorized admin access.
+- Session fixation.
+- Malicious file uploads.
+- Price manipulation.
+- Stock manipulation.
+- Unauthorized order access.
+
+### UX testing
+
+Evaluate:
+
+- Can a new visitor understand the business within five seconds?
+- Can a customer find a specific product quickly?
+- Can a customer understand product weights and prices?
+- Can a customer add an item without confusion?
+- Can a customer complete checkout without unnecessary friction?
+- Can a customer understand delivery costs before placing an order?
+- Can an administrator manage the business without technical assistance?
+
+Fix problems rather than simply documenting them.
+
+---
+
+# 20. DEVELOPMENT WORKFLOW
+
+Follow a structured development process.
+
+Do not attempt to generate the entire application as one unplanned block of code.
+
+### Phase 1: Discovery and architecture
+
+- Analyze requirements.
+- Define system architecture.
+- Design the database.
+- Define user journeys.
+- Create the complete page map.
+- Establish the design system.
+- Identify technical risks.
+
+Deliver the architecture before implementation.
+
+### Phase 2: UI/UX design
+
+Design:
+
+- Homepage.
+- Shop.
+- Category listing.
+- Product detail.
+- Cart.
+- Checkout.
+- Customer account.
+- Admin dashboard.
+
+Establish reusable components and responsive behavior.
+
+### Phase 3: Core development
+
+Implement:
+
+- Database.
+- Routing.
+- Authentication.
+- Product management.
+- Categories.
+- Variants.
+- Inventory.
+- Cart.
+- Checkout.
+- Orders.
+
+### Phase 4: Administration
+
+Implement the complete administration system.
+
+### Phase 5: Content and SEO
+
+Implement the blog, metadata, structured data and SEO functionality.
+
+### Phase 6: Security and optimization
+
+Conduct security reviews, optimize queries and improve performance.
+
+### Phase 7: Testing and deployment
+
+Test locally and on the actual IONOS hosting environment.
+
+Provide:
+- Database installation instructions.
+- Configuration instructions.
+- Deployment instructions.
+- Admin account creation process.
+- Backup and restore instructions.
+- Maintenance documentation.
+
+---
+
+# 21. STRICT DEVELOPMENT RULES
+
+These instructions are mandatory.
+
+1. Never create dummy functionality and present it as complete.
+2. Never use hardcoded product listings as the production data source.
+3. All products, orders, customers and inventory must come from MySQL.
+4. Never fabricate reviews, sales statistics or customer numbers.
+5. Never create buttons that do nothing.
+6. Never leave forms without working validation and submission.
+7. Never use placeholder links in the finished application.
+8. Never expose sensitive configuration.
+9. Never duplicate application logic unnecessarily.
+10. Never compromise security for convenience.
+11. Never sacrifice usability for visual effects.
+12. Never introduce Node.js or an unsupported hosting dependency.
+13. Never use a separate frontend/backend deployment.
+14. Never consider the project complete without end-to-end testing.
+15. Keep all source files organized and documented.
+
+When something cannot be implemented because credentials, APIs or external services are unavailable, clearly identify the dependency and provide the integration interface.
+
+---
+
+# 22. FINAL DELIVERABLES
+
+At project completion, provide:
+
+1. Complete source code.
+2. Complete MySQL schema.
+3. Database installation scripts.
+4. Responsive frontend.
+5. Working shopping system.
+6. Complete checkout.
+7. Customer account system.
+8. Secure administration panel.
+9. Product and inventory management.
+10. Order management.
+11. SEO implementation.
+12. Blog module.
+13. Security implementation.
+14. Deployment documentation.
+15. Administrator documentation.
+16. Testing report.
+17. Known limitations and future recommendations.
+
+The application must be deployable on IONOS shared hosting without requiring Node.js.
+
+---
+
+# 23. DEFINITION OF SUCCESS
+
+The project will be considered successful when:
+
+- The website looks like a premium, established food brand.
+- Customers understand the products immediately.
+- Navigation feels natural and predictable.
+- Product discovery is effortless.
+- Product variants and pricing are crystal clear.
+- Checkout is simple and trustworthy.
+- The website works flawlessly on mobile.
+- The administration panel is genuinely powerful.
+- Inventory and orders remain synchronized.
+- The application is secure.
+- Search engines can crawl and understand the website.
+- Performance is excellent.
+- The business owner can operate the platform without a developer.
+
+**Final instruction: Build a business-grade e-commerce platform, not a demonstration project. Prioritize customer experience, usability, clarity, trust, security, maintainability and conversion. Every design decision and technical implementation must serve these goals.**

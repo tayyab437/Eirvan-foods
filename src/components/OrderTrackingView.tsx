@@ -1,0 +1,382 @@
+import React, { useState } from 'react';
+import { useStore } from '../context/StoreContext';
+import { Order, OrderStatus } from '../types';
+import {
+  Package,
+  Search,
+  CheckCircle2,
+  Truck,
+  Printer,
+  ShieldCheck,
+  AlertCircle,
+} from 'lucide-react';
+
+const STATUS_STEPS: OrderStatus[] = [
+  'Pending',
+  'Confirmed',
+  'Processing',
+  'Packed',
+  'Shipped',
+  'Delivered',
+];
+
+export const OrderTrackingView: React.FC = () => {
+  const { orders, lastPlacedOrder, settings, setActiveView } = useStore();
+
+  const [searchQuery, setSearchQuery] = useState(
+    lastPlacedOrder ? lastPlacedOrder.orderNumber : ''
+  );
+  const [searchedOrder, setSearchedOrder] = useState<Order | null>(
+    lastPlacedOrder || (orders.length > 0 ? orders[0] : null)
+  );
+  const [searchError, setSearchError] = useState(false);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearchError(false);
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return;
+
+    const found = orders.find(
+      (o) =>
+        o.orderNumber.toLowerCase() === q ||
+        o.customerPhone.replace(/[^0-9]/g, '') === q.replace(/[^0-9]/g, '')
+    );
+
+    if (found) {
+      setSearchedOrder(found);
+    } else {
+      setSearchError(true);
+    }
+  };
+
+  const currentStepIndex = searchedOrder
+    ? STATUS_STEPS.indexOf(searchedOrder.orderStatus)
+    : 0;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+      {/* Search Bar */}
+      <div className="text-center max-w-xl mx-auto mb-12 print:hidden">
+        <div className="inline-flex items-center space-x-1.5 text-[11px] font-mono tracking-widest uppercase text-[#B69A62] mb-2">
+          <Truck className="w-3.5 h-3.5" />
+          <span>Courier Logistics & Dispatch Verification</span>
+        </div>
+        <h1 className="font-serif text-3xl sm:text-4xl text-[#302A25]">
+          Track Your Pantry Consignment
+        </h1>
+        <p className="text-xs sm:text-sm text-[#302A25]/70 mt-2 font-light">
+          Enter your Order Reference (e.g. ZDS-2026-8421) or Pakistani contact number
+        </p>
+
+        <form onSubmit={handleSearch} className="mt-6 flex space-x-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-[#302A25]/40 absolute left-3.5 top-3" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Order Number or 03XX-XXXXXXX"
+              className="w-full text-xs pl-10 pr-4 py-3 border border-[#E7DDCA] bg-[#FFFFFF] text-[#302A25] focus:outline-hidden focus:border-[#344B36] font-mono"
+            />
+          </div>
+          <button
+            type="submit"
+            className="px-6 py-3 bg-[#344B36] text-[#F7F4EC] text-xs font-mono uppercase tracking-wider hover:bg-[#2C3E2E] cursor-pointer transition-colors shadow-xs"
+          >
+            Track Order
+          </button>
+        </form>
+
+        {searchError && (
+          <p className="text-xs text-red-700 mt-3 flex items-center justify-center space-x-1 font-mono">
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span>No record found with that reference. Please check your digits or contact customer care.</span>
+          </p>
+        )}
+      </div>
+
+      {searchedOrder ? (
+        <div className="space-y-8">
+          {/* Status Tracker Card (Hidden in print) */}
+          <div className="bg-[#FFFFFF] p-6 sm:p-8 border border-[#E7DDCA] shadow-sm print:hidden space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-[#E7DDCA] gap-2">
+              <div>
+                <span className="text-[11px] font-mono text-[#302A25]/50 block uppercase tracking-wider">Consignment Reference</span>
+                <span className="font-serif text-2xl text-[#344B36]">
+                  {searchedOrder.orderNumber}
+                </span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <span className="text-xs px-3 py-1 font-mono uppercase tracking-wider bg-[#F7F4EC] text-[#344B36] border border-[#344B36]/30">
+                  Status: {searchedOrder.orderStatus}
+                </span>
+                <button
+                  onClick={handlePrint}
+                  className="p-2 border border-[#E7DDCA] hover:bg-[#F7F4EC] text-[#302A25] transition-colors cursor-pointer"
+                  title="Print Formal Invoice"
+                >
+                  <Printer className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Stepper visual */}
+            <div className="relative pt-4 pb-2">
+              <div className="hidden sm:block absolute top-1/2 left-0 w-full h-[1px] bg-[#E7DDCA] -translate-y-1/2 z-0" />
+              <div
+                className="hidden sm:block absolute top-1/2 left-0 h-[2px] bg-[#344B36] -translate-y-1/2 z-0 transition-all duration-500"
+                style={{
+                  width: `${(Math.max(0, currentStepIndex) / (STATUS_STEPS.length - 1)) * 100}%`,
+                }}
+              />
+
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 relative z-10">
+                {STATUS_STEPS.map((step, idx) => {
+                  const isCompleted = idx <= currentStepIndex;
+                  const isCurrent = idx === currentStepIndex;
+                  return (
+                    <div
+                      key={step}
+                      className="flex sm:flex-col items-center sm:text-center space-x-2 sm:space-x-0"
+                    >
+                      <div
+                        className={`w-7 h-7 flex items-center justify-center text-xs font-mono transition-all ${
+                          isCompleted
+                            ? 'bg-[#344B36] text-[#F7F4EC]'
+                            : 'bg-white border border-[#E7DDCA] text-[#302A25]/40'
+                        } ${isCurrent ? 'ring-2 ring-[#B69A62]' : ''}`}
+                      >
+                        {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
+                      </div>
+                      <span
+                        className={`text-[11px] mt-2 font-mono uppercase tracking-wider ${
+                          isCompleted ? 'text-[#344B36] font-semibold' : 'text-[#302A25]/40'
+                        }`}
+                      >
+                        {step}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Courier dispatch note */}
+            <div className="p-4 bg-[#F7F4EC] border border-[#E7DDCA] flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-3">
+              <div className="flex items-center space-x-3">
+                <Truck className="w-5 h-5 text-[#B69A62] shrink-0" />
+                <div>
+                  <p className="font-medium text-[#302A25]">
+                    Logistics Courier: {searchedOrder.courier || 'TCS Express Pakistan'}
+                  </p>
+                  <p className="text-[#302A25]/60 text-[11px] font-mono">
+                    Consignment No: <span className="font-semibold text-[#302A25]">{searchedOrder.trackingNumber || 'Pending Courier Intake'}</span>
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-[#302A25]/50 block">Est. Arrival Window:</span>
+                <span className="font-serif text-sm font-semibold text-[#344B36]">
+                  {searchedOrder.city === 'Lahore' || searchedOrder.city === 'Islamabad'
+                    ? '24–48 Hours Priority Transit'
+                    : '2 to 4 Business Days'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Printable Formal Tax Invoice & Receipt */}
+          <div className="bg-[#FFFFFF] p-8 sm:p-12 border border-[#E7DDCA] shadow-sm text-[#302A25] print:border-none print:shadow-none print:p-0">
+            {/* Invoice Top Header */}
+            <div className="flex justify-between items-start pb-6 border-b border-[#E7DDCA]">
+              <div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 rounded-xl bg-white p-1 border border-[#0A3D62]/20 flex items-center justify-center shadow-xs">
+                    <img
+                      src="/assets/aistudio/Eirvan_Foods_Natural_Goodness_Logo_8d5cce5b.png"
+                      alt="Eirvan Foods"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div>
+                    <span className="font-serif text-2xl font-bold text-[#0A3D62]">
+                      Eirvan Foods®
+                    </span>
+                    <span className="block text-[10px] font-sans font-bold text-[#4E9B36] tracking-wider uppercase">
+                      Natural Goodness • Better Tomorrow
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-[#15222E]/70 mt-1 font-light">
+                  Eirvan Foods (Pvt) Ltd • Single-Origin Mountain Harvests
+                </p>
+                <p className="text-[11px] text-[#15222E]/50 font-mono mt-0.5">
+                  Gulberg III, Lahore, Pakistan • Helpline: {settings.contactPhone}
+                </p>
+                <p className="text-[10px] text-[#4E9B36] font-mono font-medium">
+                  Registered with Punjab Food Authority (PFA-LHR-2026-921)
+                </p>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-mono tracking-widest text-[#B69A62] block">
+                  Official Harvest Invoice
+                </span>
+                <span className="font-serif text-xl font-bold text-[#302A25] block mt-0.5">
+                  {searchedOrder.orderNumber}
+                </span>
+                <span className="text-xs text-[#302A25]/60 font-mono block">
+                  Date: {new Date(searchedOrder.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Customer & Address Details */}
+            <div className="grid grid-cols-2 gap-6 py-6 border-b border-[#E7DDCA] text-xs">
+              <div>
+                <span className="font-mono uppercase text-[10px] tracking-wider text-[#302A25]/50 block mb-1">
+                  Recipient & Destination:
+                </span>
+                <p className="font-medium text-sm text-[#302A25]">
+                  {searchedOrder.customerName}
+                </p>
+                <p className="text-[#302A25]/70 mt-0.5">{searchedOrder.address}</p>
+                <p className="text-[#302A25]/70">
+                  {searchedOrder.city}, {searchedOrder.province}, Pakistan
+                </p>
+                <p className="text-[#302A25]/80 font-mono mt-1">
+                  Contact: {searchedOrder.customerPhone}
+                </p>
+              </div>
+
+              <div className="text-right">
+                <span className="font-mono uppercase text-[10px] tracking-wider text-[#302A25]/50 block mb-1">
+                  Settlement Details:
+                </span>
+                <p className="font-medium text-sm text-[#302A25]">
+                  {searchedOrder.paymentMethod === 'COD'
+                    ? 'Cash on Delivery (COD)'
+                    : searchedOrder.paymentMethod === 'BankTransfer'
+                    ? 'Direct Bank Transfer'
+                    : 'Raast Instant Settlement'}
+                </p>
+                <p className="text-[#302A25]/70 mt-0.5 font-mono">
+                  Payment Status:{' '}
+                  <span className="font-bold text-[#344B36]">
+                    {searchedOrder.paymentStatus}
+                  </span>
+                </p>
+                {searchedOrder.specialInstructions && (
+                  <p className="text-[#302A25]/60 italic mt-1 font-light">
+                    Note: &quot;{searchedOrder.specialInstructions}&quot;
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="py-6 border-b border-[#E7DDCA]">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[#E7DDCA] text-left text-[#302A25]/50 font-mono uppercase text-[10px] tracking-wider">
+                    <th className="pb-2">Harvest Description</th>
+                    <th className="pb-2">Weight</th>
+                    <th className="pb-2">SKU</th>
+                    <th className="pb-2 text-right">Unit Price</th>
+                    <th className="pb-2 text-center">Qty</th>
+                    <th className="pb-2 text-right">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E7DDCA]/50 font-sans">
+                  {searchedOrder.items.map((item, idx) => (
+                    <tr key={idx} className="py-3">
+                      <td className="py-3 font-medium text-[#302A25]">
+                        {item.productName}
+                      </td>
+                      <td className="py-3 text-[#302A25]/70 font-mono text-[11px]">{item.variantWeight}</td>
+                      <td className="py-3 font-mono text-[11px] text-[#302A25]/50">
+                        {item.sku}
+                      </td>
+                      <td className="py-3 text-right text-[#302A25]/80 font-mono">
+                        Rs. {item.price.toLocaleString()}
+                      </td>
+                      <td className="py-3 text-center font-mono font-medium">
+                        {item.quantity}
+                      </td>
+                      <td className="py-3 text-right font-mono font-bold text-[#344B36]">
+                        Rs. {(item.price * item.quantity).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Calculations Total */}
+            <div className="py-6 flex justify-end">
+              <div className="w-64 space-y-2 text-xs font-mono">
+                <div className="flex justify-between text-[#302A25]/70">
+                  <span>Subtotal:</span>
+                  <span>Rs. {searchedOrder.subtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-[#302A25]/70">
+                  <span>Nationwide Courier:</span>
+                  <span>
+                    {searchedOrder.shippingFee === 0
+                      ? 'FREE'
+                      : `Rs. ${searchedOrder.shippingFee.toLocaleString()}`}
+                  </span>
+                </div>
+                {searchedOrder.discountAmount > 0 && (
+                  <div className="flex justify-between text-[#344B36] font-semibold">
+                    <span>Discount Privilege:</span>
+                    <span>- Rs. {searchedOrder.discountAmount.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="pt-3 border-t border-[#E7DDCA] flex justify-between font-bold text-sm text-[#344B36]">
+                  <span>Total Payable:</span>
+                  <span className="font-serif text-lg">
+                    Rs. {searchedOrder.totalAmount.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer notes on receipt */}
+            <div className="pt-4 border-t border-[#E7DDCA] flex flex-col sm:flex-row items-center justify-between text-[11px] text-[#302A25]/60 space-y-2 sm:space-y-0">
+              <p className="font-light">
+                Thank you for patronizing authentic Pakistani harvests. Support helpline: {settings.whatsappNumber}
+              </p>
+              <div className="flex items-center space-x-1.5 text-[#B69A62]">
+                <ShieldCheck className="w-4 h-4" />
+                <span className="font-mono text-[10px] uppercase tracking-wider">100% Single-Origin Botanical Guarantee</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-16 bg-[#FFFFFF] border border-[#E7DDCA] p-8 space-y-4">
+          <Package className="w-12 h-12 text-[#B69A62] mx-auto stroke-1" />
+          <h3 className="font-serif text-xl text-[#302A25]">
+            No Active Orders Found
+          </h3>
+          <p className="text-xs text-[#302A25]/70 max-w-sm mx-auto font-light leading-relaxed">
+            Enter your order reference above or explore our seasonal harvests to place an order.
+          </p>
+          <button
+            onClick={() => setActiveView('shop')}
+            className="px-6 py-2.5 bg-[#344B36] text-[#F7F4EC] text-xs font-mono uppercase tracking-wider hover:bg-[#2C3E2E] cursor-pointer"
+          >
+            Explore The Pantry
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+

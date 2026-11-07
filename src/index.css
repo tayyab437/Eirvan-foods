@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  --font-brand-title: "Cinzel", "Cormorant Garamond", Georgia, serif;
+  --font-serif-headline: "Cormorant Garamond", Georgia, serif;
+  --font-serif-heading: "DM Serif Display", Georgia, serif;
+  --font-sans: "Manrope", system-ui, -apple-system, sans-serif;
+  --font-tagline: "Montserrat", "Manrope", sans-serif;
+
+  /* Eirvan Foods Brand Color Palette (Derived from official logo) */
+  --color-eirvan-navy: #0a3d62;
+  --color-eirvan-navy-dark: #072b47;
+  --color-eirvan-navy-light: #125585;
+  --color-eirvan-green: #4e9b36;
+  --color-eirvan-green-dark: #3a7927;
+  --color-eirvan-green-light: #65b74b;
+  --color-eirvan-amber: #c6842d;
+  --color-eirvan-amber-dark: #a86c1f;
+  --color-eirvan-cream: #fbf9f4;
+  --color-eirvan-cream-light: #ffffff;
+  --color-eirvan-ice: #eef5fa;
+  --color-eirvan-ice-dark: #dbeaf4;
+
+  /* Backwards-compatible mappings for existing components */
+  --color-olive: #0a3d62;
+  --color-olive-dark: #072b47;
+  --color-olive-light: #125585;
+  --color-warm-ivory: #fbf9f4;
+  --color-warm-ivory-light: #ffffff;
+  --color-sage: #4e9b36;
+  --color-sage-light: #65b74b;
+  --color-terracotta: #c6842d;
+  --color-terracotta-dark: #a86c1f;
+  --color-espresso: #15222e;
+  --color-espresso-muted: #556877;
+  --color-sand: #eef5fa;
+  --color-sand-light: #f7fafc;
+  --color-brass: #4e9b36;
+  --color-brass-dark: #3a7927;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-espresso);
+    background-color: var(--color-eirvan-cream);
+  }
+
+  h1, .font-headline {
+    font-family: var(--font-serif-headline);
+  }
+
+  h2, h3, h4, .font-heading {
+    font-family: var(--font-serif-heading);
+  }
+}
+
+/* Custom scrollbar with Eirvan green and navy */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #fbf9f4;
+}
+::-webkit-scrollbar-thumb {
+  background: #4e9b36;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0a3d62;
+}
+

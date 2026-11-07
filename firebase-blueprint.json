@@ -1,0 +1,404 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Artisanal dry fruit or superfood item with variant pricing and nutritional facts",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique product identifier"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Product display title"
+        },
+        "urduName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Traditional Urdu botanical name"
+        },
+        "slug": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "SEO friendly slug"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["mixed", "nuts", "powders", "dates-raisins", "gift-boxes"],
+          "description": "Primary pantry category"
+        },
+        "categoryLabel": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Human readable category label"
+        },
+        "shortDescription": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Brief summary"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Full editorial description"
+        },
+        "origin": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Geographical harvest region"
+        },
+        "packaging": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Airtight packaging details"
+        },
+        "shelfLife": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Storage durability advice"
+        },
+        "imageUrl": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Primary image URL"
+        },
+        "galleryImages": {
+          "type": "array",
+          "description": "Supporting photograph URLs"
+        },
+        "variants": {
+          "type": "array",
+          "description": "Weight variants with pricing and stock"
+        },
+        "featured": {
+          "type": "boolean",
+          "description": "Promoted on homepage"
+        },
+        "bestSeller": {
+          "type": "boolean",
+          "description": "Customer favorite badge"
+        },
+        "rating": {
+          "type": "number",
+          "description": "Average review rating"
+        },
+        "reviewCount": {
+          "type": "number",
+          "description": "Total customer reviews"
+        },
+        "nutritionFacts": {
+          "type": "object",
+          "description": "Serving size, protein, and calories"
+        },
+        "healthBenefits": {
+          "type": "array",
+          "description": "Key therapeutic health benefits"
+        },
+        "inStock": {
+          "type": "boolean",
+          "description": "Current availability state"
+        }
+      },
+      "required": ["id", "name", "slug", "category", "origin", "imageUrl", "variants"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer purchase transaction record with courier tracking details",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document ID"
+        },
+        "orderNumber": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Official order reference (e.g. ZDS-2026-8421)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of order placement"
+        },
+        "customerName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Full name of recipient"
+        },
+        "customerPhone": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Pakistani contact phone number"
+        },
+        "customerEmail": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Optional customer email"
+        },
+        "city": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Destination city"
+        },
+        "province": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Destination province"
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Street delivery address"
+        },
+        "postalCode": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Postal code"
+        },
+        "specialInstructions": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Delivery notes"
+        },
+        "items": {
+          "type": "array",
+          "description": "Purchased dry fruits and weight variants"
+        },
+        "subtotal": {
+          "type": "number",
+          "description": "Gross items total in PKR"
+        },
+        "shippingFee": {
+          "type": "number",
+          "description": "Courier delivery charges"
+        },
+        "discountAmount": {
+          "type": "number",
+          "description": "Coupon deduction"
+        },
+        "couponCode": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Applied discount code"
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Net payable amount in PKR"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["COD", "BankTransfer", "Raast"],
+          "description": "Chosen payment route"
+        },
+        "paymentStatus": {
+          "type": "string",
+          "enum": ["Pending", "Paid", "Failed", "Refunded"],
+          "description": "Settlement state"
+        },
+        "orderStatus": {
+          "type": "string",
+          "enum": ["Pending", "Confirmed", "Processing", "Packed", "Shipped", "Delivered", "Cancelled", "Returned"],
+          "description": "Logistics fulfillment state"
+        },
+        "trackingNumber": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "TCS or courier tracking number"
+        },
+        "courier": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Logistics carrier partner"
+        },
+        "internalNotes": {
+          "type": "array",
+          "description": "Administrative notes"
+        }
+      },
+      "required": ["orderNumber", "customerName", "customerPhone", "city", "address", "items", "totalAmount", "paymentMethod", "orderStatus"]
+    },
+    "Review": {
+      "title": "CustomerReview",
+      "description": "Customer feedback and rating for a pantry harvest",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique review identifier"
+        },
+        "productId": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Referenced product ID"
+        },
+        "productName": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Product title"
+        },
+        "customerName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Customer display name"
+        },
+        "city": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "City of reviewer"
+        },
+        "rating": {
+          "type": "number",
+          "description": "Score from 1 to 5"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of review submission"
+        },
+        "comment": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Review text"
+        },
+        "verifiedPurchase": {
+          "type": "boolean",
+          "description": "Verified buyer status"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["approved", "pending", "rejected"],
+          "description": "Moderation state"
+        }
+      },
+      "required": ["productId", "customerName", "rating", "comment", "status"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Discount voucher for shopping privileges",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Voucher promotional code"
+        },
+        "discountType": {
+          "type": "string",
+          "enum": ["percentage", "fixed"],
+          "description": "Discount calculation type"
+        },
+        "discountValue": {
+          "type": "number",
+          "description": "Percentage or fixed PKR value"
+        },
+        "minOrderAmount": {
+          "type": "number",
+          "description": "Minimum basket total required"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Current coupon redemption status"
+        },
+        "expiryDate": {
+          "type": "string",
+          "description": "Expiry timestamp"
+        },
+        "usageCount": {
+          "type": "number",
+          "description": "Total times redeemed"
+        }
+      },
+      "required": ["code", "discountType", "discountValue", "minOrderAmount", "isActive"]
+    },
+    "StoreSettings": {
+      "title": "StoreSettings",
+      "description": "Global store configuration parameters",
+      "type": "object",
+      "properties": {
+        "storeName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Boutique name"
+        },
+        "tagline": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Store branding tagline"
+        },
+        "contactPhone": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Telephone helpline"
+        },
+        "whatsappNumber": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "WhatsApp concierge"
+        },
+        "contactEmail": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Support email address"
+        },
+        "freeShippingThreshold": {
+          "type": "number",
+          "description": "Free nationwide shipping threshold in PKR"
+        },
+        "standardShippingRate": {
+          "type": "number",
+          "description": "Flat courier fee in PKR"
+        },
+        "codEnabled": {
+          "type": "boolean",
+          "description": "Cash on Delivery availability"
+        },
+        "bankDetails": {
+          "type": "object",
+          "description": "Direct bank transfer credentials and Raast ID"
+        },
+        "announcementBarMessage": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Top announcement ticker copy"
+        },
+        "announcementActive": {
+          "type": "boolean",
+          "description": "Announcement visibility"
+        }
+      },
+      "required": ["storeName", "contactPhone", "whatsappNumber", "freeShippingThreshold", "standardShippingRate"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": {
+        "$ref": "Product"
+      },
+      "description": "Collection of all dry fruits, nuts, powders, dates, and gift sets"
+    },
+    "/orders/{orderId}": {
+      "schema": {
+        "$ref": "Order"
+      },
+      "description": "Collection of all customer orders, logistics shipments, and payment records"
+    },
+    "/reviews/{reviewId}": {
+      "schema": {
+        "$ref": "Review"
+      },
+      "description": "Customer reviews and sensory ratings"
+    },
+    "/coupons/{couponId}": {
+      "schema": {
+        "$ref": "Coupon"
+      },
+      "description": "Promotional vouchers and seasonal discount codes"
+    },
+    "/settings/{settingId}": {
+      "schema": {
+        "$ref": "StoreSettings"
+      },
+      "description": "Global store operational policies and contact information"
+    }
+  }
+}
