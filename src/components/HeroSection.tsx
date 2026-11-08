@@ -24,7 +24,7 @@ export const HeroSection: React.FC = () => {
   };
 
   return (
-    <div className="relative overflow-hidden bg-[#FBF9F4] border-b border-[#0A3D62]/10">
+    <div className="relative overflow-hidden bg-[#FBF9F4] border-b border-[#0A3D62]/10 w-full max-w-full">
       {/* Editorial Hero Layout */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">

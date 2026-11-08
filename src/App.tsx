@@ -96,13 +96,13 @@ const MainContent: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F7F4EC]">
+    <div className="min-h-screen flex flex-col bg-[#F7F4EC] w-full max-w-full overflow-x-hidden">
       <Navbar />
 
-      <main className="flex-1">
+      <main className="flex-1 w-full max-w-full overflow-x-hidden">
         {/* VIEW 1: HOME */}
         {activeView === 'home' && (
-          <div className="space-y-24 sm:space-y-32">
+          <div className="space-y-24 sm:space-y-32 w-full max-w-full overflow-x-hidden">
             {/* Section 1 & 2: Hero & Trust Strip */}
             <HeroSection />
 
@@ -151,7 +151,7 @@ const MainContent: React.FC = () => {
                       className="w-full h-full object-cover hover:scale-102 transition-transform duration-700"
                     />
                   </div>
-                  <div className="absolute -bottom-5 -right-5 hidden sm:block bg-[#344B36] text-[#F7F4EC] p-5 max-w-xs shadow-xl border border-[#2C3E2E]">
+                  <div className="absolute bottom-2 right-2 sm:bottom-0 sm:right-0 lg:-bottom-5 lg:-right-5 hidden sm:block bg-[#344B36] text-[#F7F4EC] p-5 max-w-xs shadow-xl border border-[#2C3E2E]">
                     <span className="font-serif text-sm tracking-wide block italic">
                       &quot;Nature does not hurry, yet everything is accomplished.&quot;
                     </span>
@@ -616,7 +616,7 @@ const MainContent: React.FC = () => {
             </div>
 
             {/* Zero-Pill Category Tabs */}
-            <div className="flex border-b border-[#E7DDCA] space-x-6 overflow-x-auto pb-3 mb-10 text-xs font-mono uppercase tracking-wider">
+            <div className="flex border-b border-[#E7DDCA] space-x-6 overflow-x-auto pb-3 mb-10 text-xs font-mono uppercase tracking-wider w-full max-w-full">
               {categories.map((cat) => {
                 const isSel = selectedCategory === cat.id;
                 return (

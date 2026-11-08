@@ -133,7 +133,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full max-w-full overflow-x-hidden">
       {/* Admin Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[#E8DDCA] gap-4">
         <div>
@@ -337,8 +337,8 @@ export const AdminDashboard: React.FC = () => {
             <h3 className="font-serif text-lg font-bold text-[#244C37] mb-4">
               Recent Customer Orders (Pakistan)
             </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-xs min-w-[500px]">
                 <thead>
                   <tr className="border-b border-[#E8DDCA] text-left text-gray-400 uppercase text-[10px]">
                     <th className="pb-3">Order ID</th>
@@ -452,7 +452,8 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-3xl border border-[#E8DDCA] overflow-hidden shadow-xs">
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-xs min-w-[650px]">
               <thead>
                 <tr className="bg-[#F8F5ED] border-b border-[#E8DDCA] text-left text-gray-500 uppercase text-[10px]">
                   <th className="p-3">Product</th>
@@ -540,6 +541,7 @@ export const AdminDashboard: React.FC = () => {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -678,7 +680,8 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-3xl border border-[#E8DDCA] overflow-hidden shadow-xs">
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-xs min-w-[550px]">
               <thead>
                 <tr className="bg-[#F8F5ED] border-b border-[#E8DDCA] text-left text-gray-500 uppercase text-[10px]">
                   <th className="p-3">Product Name</th>
@@ -724,6 +727,7 @@ export const AdminDashboard: React.FC = () => {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}

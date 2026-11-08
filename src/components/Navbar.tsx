@@ -60,7 +60,7 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-[#FBF9F4]/95 backdrop-blur-md border-b border-[#D8E6F0] transition-colors shadow-2xs">
+    <header className="sticky top-0 z-40 bg-[#FBF9F4]/95 backdrop-blur-md border-b border-[#D8E6F0] transition-colors shadow-2xs w-full max-w-full">
       {/* 3.1 Announcement Bar */}
       {settings.announcementActive && (
         <div className="bg-[#0A3D62] text-[#FBF9F4] py-2 px-4 text-xs font-medium tracking-wide border-b border-[#072B47]">
@@ -216,7 +216,7 @@ export const Navbar: React.FC = () => {
 
               {/* Search dropdown */}
               {searchOpen && (
-                <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-[#E7DDCA] p-3.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white rounded-2xl shadow-2xl border border-[#0A3D62]/15 p-3.5 z-50 animate-in fade-in zoom-in-95 duration-150">
                   <div className="relative">
                     <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                     <input

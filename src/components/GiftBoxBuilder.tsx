@@ -224,7 +224,7 @@ export const GiftBoxBuilder: React.FC = () => {
       </div>
 
       {/* Stepper Header */}
-      <div className="flex items-center justify-center space-x-6 sm:space-x-10 mb-10 border-b border-[#E7DDCA] pb-4">
+      <div className="flex flex-wrap sm:flex-nowrap items-center justify-center gap-3 sm:gap-8 mb-10 border-b border-[#E7DDCA] pb-4">
         <button
           onClick={() => setStep(1)}
           className={`flex items-center space-x-2 text-xs uppercase tracking-wider font-bold pb-2 cursor-pointer transition-all ${

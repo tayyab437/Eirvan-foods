@@ -40,10 +40,42 @@
 }
 
 @layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    overflow-x: hidden;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    scroll-behavior: smooth;
+  }
+
   body {
+    overflow-x: hidden;
+    max-width: 100%;
+    width: 100%;
+    position: relative;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
     font-family: var(--font-sans);
     color: var(--color-espresso);
     background-color: var(--color-eirvan-cream);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  #root {
+    overflow-x: hidden;
+    max-width: 100%;
+    width: 100%;
+    min-height: 100vh;
+  }
+
+  img, video, canvas, svg {
+    max-width: 100%;
+    height: auto;
   }
 
   h1, .font-headline {

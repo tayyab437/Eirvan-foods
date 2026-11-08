@@ -32,7 +32,7 @@ export const Footer: React.FC = () => {
   };
 
   return (
-    <footer className="bg-[#0A3D62] text-[#FBF9F4] border-t border-[#072B47] mt-24">
+    <footer className="bg-[#0A3D62] text-[#FBF9F4] border-t border-[#072B47] mt-24 w-full max-w-full overflow-x-hidden">
       {/* Refined Trust Bar */}
       <div className="border-b border-white/10 py-10 bg-[#072B47]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">

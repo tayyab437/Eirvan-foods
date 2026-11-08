@@ -280,8 +280,8 @@ export const OrderTrackingView: React.FC = () => {
             </div>
 
             {/* Items Table */}
-            <div className="py-6 border-b border-[#E7DDCA]">
-              <table className="w-full text-xs">
+            <div className="py-6 border-b border-[#E7DDCA] overflow-x-auto w-full">
+              <table className="w-full text-xs min-w-[500px]">
                 <thead>
                   <tr className="border-b border-[#E7DDCA] text-left text-[#302A25]/50 font-mono uppercase text-[10px] tracking-wider">
                     <th className="pb-2">Harvest Description</th>
