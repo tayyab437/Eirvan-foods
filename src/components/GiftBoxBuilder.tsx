@@ -27,7 +27,7 @@ const BOX_OPTIONS: BoxOption[] = [
     urduName: 'آرٹیسن اولیو باکس',
     capacity: 4,
     basePrice: 1950,
-    image: '/assets/images/luxury_olive_gift_box_1794054054136.jpg',
+    image: '/assets/images/luxury_olive_gift_box_1794054054136.webp',
     description: 'Deep olive green rigid matte chest with warm cream typographic label and satin grosgrain ribbon.',
   },
   {
@@ -36,7 +36,7 @@ const BOX_OPTIONS: BoxOption[] = [
     urduName: 'چنیوٹ شاہی ووڈن باکس',
     capacity: 4,
     basePrice: 1850,
-    image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=480&q=65&fm=webp',
     description: 'Natural seasoned pinewood with antique brass latch & fitted cradles.',
   },
   {
@@ -45,7 +45,7 @@ const BOX_OPTIONS: BoxOption[] = [
     urduName: 'زمرد ایمرلڈ ویلوٹ ٹرے',
     capacity: 6,
     basePrice: 2400,
-    image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=480&q=65&fm=webp',
     description: 'Deep forest green velvet with gold zari border and clear acrylic protective lid.',
   },
 ];
@@ -106,7 +106,7 @@ const FILLINGS: DryFruitFilling[] = [
     name: 'Shahi Royal Panjiri Jar',
     weightGrams: 200,
     price: 1450,
-    image: '/assets/images/dry_fruit_powders_culinary_1794054053020.jpg',
+    image: '/assets/images/dry_fruit_powders_culinary_1794054053020.webp',
   },
 ];
 

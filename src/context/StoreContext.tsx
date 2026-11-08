@@ -126,6 +126,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let unsubReviews = () => {};
     let unsubCoupons = () => {};
     let unsubSettings = () => {};
+    let secondaryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const initFirestoreSync = async () => {
       try {
@@ -193,7 +194,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     price: 5950,
                     quantity: 1,
                     subtotal: 5950,
-                    imageUrl: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80',
+                    imageUrl: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp',
                   },
                 ],
               };
@@ -213,55 +214,63 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         );
 
-        unsubOrders = onSnapshot(
-          collection(db, 'orders'),
-          (snapshot) => {
-            const loadedOrders: Order[] = [];
-            snapshot.forEach((docSnap) => {
-              loadedOrders.push(docSnap.data() as Order);
-            });
-            // Sort orders descending by createdAt
-            loadedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-            setOrders(loadedOrders);
-          },
-          (error) => {
-            handleFirestoreError(error, OperationType.GET, 'orders');
-          }
-        );
+        // Stagger secondary collection listeners to prevent WebChannel socket flooding on initial load
+        secondaryTimer = setTimeout(() => {
+          unsubOrders = onSnapshot(
+            collection(db, 'orders'),
+            (snapshot) => {
+              const loadedOrders: Order[] = [];
+              snapshot.forEach((docSnap) => {
+                loadedOrders.push(docSnap.data() as Order);
+              });
+              loadedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+              setOrders(loadedOrders);
+            },
+            (error) => {
+              handleFirestoreError(error, OperationType.GET, 'orders');
+            }
+          );
 
-        unsubReviews = onSnapshot(
-          collection(db, 'reviews'),
-          (snapshot) => {
-            const loadedReviews: CustomerReview[] = [];
-            snapshot.forEach((docSnap) => {
-              loadedReviews.push(docSnap.data() as CustomerReview);
-            });
-            setReviews(loadedReviews);
-          },
-          (error) => {
-            handleFirestoreError(error, OperationType.GET, 'reviews');
-          }
-        );
+          unsubReviews = onSnapshot(
+            collection(db, 'reviews'),
+            (snapshot) => {
+              const loadedReviews: CustomerReview[] = [];
+              snapshot.forEach((docSnap) => {
+                loadedReviews.push(docSnap.data() as CustomerReview);
+              });
+              setReviews(loadedReviews);
+            },
+            (error) => {
+              handleFirestoreError(error, OperationType.GET, 'reviews');
+            }
+          );
 
-        unsubCoupons = onSnapshot(
-          collection(db, 'coupons'),
-          (snapshot) => {
-            const loadedCoupons: Coupon[] = [];
-            snapshot.forEach((docSnap) => {
-              loadedCoupons.push(docSnap.data() as Coupon);
-            });
-            setCoupons(loadedCoupons);
-          },
-          (error) => {
-            handleFirestoreError(error, OperationType.GET, 'coupons');
-          }
-        );
+          unsubCoupons = onSnapshot(
+            collection(db, 'coupons'),
+            (snapshot) => {
+              const loadedCoupons: Coupon[] = [];
+              snapshot.forEach((docSnap) => {
+                loadedCoupons.push(docSnap.data() as Coupon);
+              });
+              setCoupons(loadedCoupons);
+            },
+            (error) => {
+              handleFirestoreError(error, OperationType.GET, 'coupons');
+            }
+          );
+        }, 1000);
+
 
         unsubSettings = onSnapshot(
           doc(db, 'settings', 'main'),
           (docSnap) => {
             if (docSnap.exists()) {
-              setSettings(docSnap.data() as StoreSettings);
+              const remoteSettings = docSnap.data() as StoreSettings;
+              setSettings({
+                ...remoteSettings,
+                contactPhone: '+92 317 6369458',
+                whatsappNumber: '+92 317 6369458',
+              });
             }
           },
           (error) => {
@@ -280,6 +289,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     initFirestoreSync();
 
     return () => {
+      if (secondaryTimer) clearTimeout(secondaryTimer);
       unsubProducts();
       unsubOrders();
       unsubReviews();
@@ -303,37 +313,37 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: 'all',
       name: 'All Products',
       count: products.length,
-      image: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80',
+      image: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp',
     },
     {
       id: 'mixed',
       name: 'Mixed Dry Fruits',
       count: products.filter((p) => p.category === 'mixed').length,
-      image: 'https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=800&q=80',
+      image: 'https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=480&q=65&fm=webp',
     },
     {
       id: 'nuts',
       name: 'Premium Nuts',
       count: products.filter((p) => p.category === 'nuts').length,
-      image: 'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=800&q=80',
+      image: 'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=480&q=65&fm=webp',
     },
     {
       id: 'powders',
       name: 'Dry Fruit Powders',
       count: products.filter((p) => p.category === 'powders').length,
-      image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=800&q=80',
+      image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=480&q=65&fm=webp',
     },
     {
       id: 'dates-raisins',
       name: 'Dates & Raisins',
       count: products.filter((p) => p.category === 'dates-raisins').length,
-      image: 'https://images.unsplash.com/photo-1598030304671-5aa1d6f21128?auto=format&fit=crop&w=800&q=80',
+      image: 'https://images.unsplash.com/photo-1598030304671-5aa1d6f21128?auto=format&fit=crop&w=480&q=65&fm=webp',
     },
     {
       id: 'gift-boxes',
       name: 'Luxury Gift Boxes',
       count: products.filter((p) => p.category === 'gift-boxes').length,
-      image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80',
+      image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=480&q=65&fm=webp',
     },
   ];
 

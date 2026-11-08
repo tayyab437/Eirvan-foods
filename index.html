@@ -9,15 +9,29 @@
     <meta property="og:description" content="Eirvan Foods - Premium single-origin dry fruits, wholesome nuts, stone-ground powders, and artisan gift hampers. Natural Goodness • Better Tomorrow." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <!-- Preload critical LCP assets for Slow 4G networks -->
-    <link rel="preload" as="image" href="/assets/aistudio/Eirvan_Foods_Natural_Goodness_Logo_8d5cce5b.png" type="image/png" fetchpriority="high" />
-    <link rel="preload" as="image" href="/assets/images/hero_mediterranean_pantry_mobile.webp" type="image/webp" fetchpriority="high" />
+    <link rel="help" href="/llms.txt" type="text/markdown" title="LLM Summary" />
 
-    <!-- Preconnect hints for max 4 critical origins -->
+    <!-- PWA and Mobile Meta Tags -->
+    <meta name="theme-color" content="#0A3D62" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Eirvan Foods" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+    <!-- Preload critical LCP assets with media queries for Slow 4G networks -->
+    <link rel="preload" as="image" href="/assets/aistudio/Eirvan_Foods_Natural_Goodness_Logo_8d5cce5b.png" type="image/png" fetchpriority="high" />
+    <link rel="preload" as="image" href="/assets/images/hero_mediterranean_pantry_mobile.webp" type="image/webp" media="(max-width: 640px)" fetchpriority="high" />
+    <link rel="preload" as="image" href="/assets/images/hero_mediterranean_pantry_1794054052086.webp" type="image/webp" media="(min-width: 641px)" fetchpriority="high" />
+
+    <!-- Preconnect hints (strictly <= 3 critical origins to eliminate connection warning) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preconnect" href="https://gen-lang-client-0351129330.firebaseapp.com" crossorigin />
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
+    <link rel="dns-prefetch" href="https://gen-lang-client-0351129330.firebaseapp.com" />
+
 
     <!-- Optimized non-render-blocking Google Fonts with font-display: swap -->
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,600;1,600&family=Manrope:wght@400;600;700;800&display=swap" />
@@ -27,7 +41,107 @@
     </noscript>
   </head>
   <body class="bg-[#FBF9F4] text-[#15222E] antialiased selection:bg-[#4E9B36]/20 selection:text-[#0A3D62]">
-    <div id="root"></div>
+    <div id="root">
+      <div class="min-h-screen flex flex-col bg-[#F7F4EC] w-full max-w-full overflow-x-hidden">
+        <header class="sticky top-0 z-40 bg-[#FBF9F4]/95 backdrop-blur-md border-b border-[#D8E6F0] w-full max-w-full">
+          <div class="bg-[#0A3D62] text-[#FBF9F4] py-2 px-4 text-xs font-medium tracking-wide border-b border-[#072B47]">
+            <div class="max-w-7xl mx-auto flex items-center justify-between">
+              <div class="flex items-center space-x-2 truncate">
+                <span class="text-[10px] uppercase tracking-widest text-[#58A838] font-bold font-sans">
+                  Eirvan Dispatch:
+                </span>
+                <span class="truncate text-[#FBF9F4]/95 font-sans">
+                  🚚 Nationwide Delivery Across Pakistan • FREE Shipping on Orders Over Rs. 3,500 • Fresh 2026 Winter Harvest
+                </span>
+              </div>
+              <div class="hidden md:flex items-center space-x-6 text-xs text-[#EDF4F9]">
+                <span>Concierge: +92 317 6369458</span>
+              </div>
+            </div>
+          </div>
+          <div class="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 w-full max-w-full overflow-hidden">
+            <div class="flex items-center justify-between h-16 sm:h-20 gap-2 sm:gap-4 lg:gap-6 w-full">
+              <div class="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
+                <div class="h-9 sm:h-12 flex items-center justify-center shrink-0">
+                  <img
+                    src="/assets/aistudio/Eirvan_Foods_Natural_Goodness_Logo_8d5cce5b.png"
+                    alt="Eirvan Foods - Natural Goodness • Better Tomorrow"
+                    width="240"
+                    height="56"
+                    decoding="async"
+                    class="h-9 sm:h-12 w-auto object-contain"
+                  />
+                </div>
+                <div class="flex items-baseline space-x-1">
+                  <span class="text-lg sm:text-2xl font-bold text-[#0A3D62] tracking-wide" style="font-family: Cinzel, Georgia, serif;">
+                    EIRVAN
+                  </span>
+                  <span class="text-[10px] sm:text-xs font-sans font-extrabold text-[#0A3D62] tracking-wider uppercase">
+                    FOODS
+                  </span>
+                  <span class="text-[10px] text-[#0A3D62] font-mono">®</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main class="flex-1 w-full max-w-full overflow-x-hidden">
+          <div class="relative overflow-hidden bg-[#FBF9F4] border-b border-[#0A3D62]/10 w-full max-w-full">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
+              <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+                <div class="lg:col-span-6 space-y-6">
+                  <div class="space-y-3">
+                    <div class="inline-flex items-center space-x-2 px-3 py-1 bg-[#4E9B36]/10 border border-[#4E9B36]/30 rounded-full">
+                      <span class="text-xs uppercase tracking-[0.2em] font-bold text-[#0A3D62]">
+                        EIRVAN FOODS · NATURAL GOODNESS
+                      </span>
+                    </div>
+                    <h1 class="text-4xl sm:text-5xl lg:text-6xl text-[#0A3D62] tracking-tight leading-[1.08] font-bold" style="font-family: Cinzel, 'Cormorant Garamond', Georgia, serif;">
+                      Nature’s Finest, Thoughtfully Gathered.
+                    </h1>
+                  </div>
+
+                  <p class="text-sm sm:text-base text-[#15222E]/80 leading-relaxed max-w-xl font-sans font-normal">
+                    Discover exquisitely selected dry fruits, cold stone-ground superfoods, and artisanal nutrition blends by <strong class="text-[#0A3D62]">Eirvan Foods®</strong>. From hand-cracked Kashmiri Mamra almonds to high-mountain Gilgit walnuts and authentic Madinah dates—pure wellness for a better tomorrow.
+                  </p>
+
+                  <div class="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 pt-2">
+                    <div class="px-7 py-4 bg-[#0A3D62] text-[#FBF9F4] font-sans text-xs uppercase tracking-widest font-bold rounded-xl flex items-center justify-center space-x-2 shadow-md">
+                      <span>Explore the Collection</span>
+                    </div>
+                    <div class="px-7 py-4 bg-white border border-[#0A3D62]/20 text-[#0A3D62] font-sans text-xs uppercase tracking-widest font-bold rounded-xl flex items-center justify-center space-x-2 shadow-2xs">
+                      <span>Discover Our Story</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="lg:col-span-6 relative">
+                  <div class="relative mx-auto max-w-lg lg:max-w-none">
+                    <div class="aspect-4/3 sm:aspect-5/4 rounded-3xl overflow-hidden border border-[#0A3D62]/15 shadow-xl bg-white relative">
+                      <picture class="w-full h-full">
+                        <source srcset="/assets/images/hero_mediterranean_pantry_mobile.webp" media="(max-width: 640px)" type="image/webp" />
+                        <source srcset="/assets/images/hero_mediterranean_pantry_1794054052086.webp" type="image/webp" />
+                        <img
+                          src="/assets/images/hero_mediterranean_pantry_mobile.webp"
+                          alt="Eirvan Foods Natural Goodness Dry Fruits Still Life"
+                          width="600"
+                          height="480"
+                          fetchpriority="high"
+                          decoding="async"
+                          class="w-full h-full object-cover"
+                          style="width: 100%; height: 100%; object-fit: cover; display: block;"
+                        />
+                      </picture>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

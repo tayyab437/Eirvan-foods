@@ -426,7 +426,7 @@ INSERT INTO categories (name, name_urdu, slug, description, display_order) VALUE
 -- Core Settings
 INSERT INTO settings (setting_key, setting_value, description) VALUES
 ('store_name', 'Zauq-e-Sehat (ذوقِ صحت)', 'Official store brand name'),
-('contact_phone', '+92 42 35789120', 'Customer support telephone line'),
+('contact_phone', '+92 317 6369458', 'Customer support telephone line'),
 ('whatsapp_number', '+92 317 6369458', 'WhatsApp inquiry channel'),
 ('currency_code', 'PKR', 'Base store currency'),
 ('free_shipping_threshold', '3500', 'Minimum order amount in PKR for free delivery'),

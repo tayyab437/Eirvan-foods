@@ -39,6 +39,8 @@ const MainContent: React.FC = () => {
     setActiveView,
     selectedCategory,
     setSelectedCategory,
+    isAiSommelierOpen,
+    isAiStudioOpen,
     setIsAiSommelierOpen,
     setIsAiStudioOpen,
     blogs,
@@ -751,8 +753,8 @@ const MainContent: React.FC = () => {
       <ProductDetailModal />
       <CartDrawer />
       <Suspense fallback={null}>
-        <AiImageStudio />
-        <AiSommelierChat />
+        {isAiStudioOpen && <AiImageStudio />}
+        {isAiSommelierOpen && <AiSommelierChat />}
       </Suspense>
       <WhatsAppButton />
 

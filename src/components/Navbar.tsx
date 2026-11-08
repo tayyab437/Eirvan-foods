@@ -4,8 +4,6 @@ import {
   ShoppingBag,
   Heart,
   Search,
-  Sparkles,
-  MessageSquare,
   ShieldCheck,
   Menu,
   X,
@@ -15,6 +13,8 @@ import {
   BookOpen,
   ArrowRight,
 } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
+
 
 export const Navbar: React.FC = () => {
   const {
@@ -28,8 +28,6 @@ export const Navbar: React.FC = () => {
     setSelectedCategory,
     setSelectedProduct,
     setIsCartOpen,
-    setIsAiSommelierOpen,
-    setIsAiStudioOpen,
   } = useStore();
 
   const [searchOpen, setSearchOpen] = useState(false);
@@ -267,26 +265,6 @@ export const Navbar: React.FC = () => {
               )}
             </div>
 
-            {/* AI Image Studio Button */}
-            <button
-              onClick={() => setIsAiStudioOpen(true)}
-              className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 bg-[#4E9B36]/10 text-[#0A3D62] hover:bg-[#4E9B36]/20 rounded-full text-xs font-semibold border border-[#4E9B36]/30 transition-all cursor-pointer whitespace-nowrap"
-              title="AI 4K Dry Fruit Visualizer"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#C6842D]" />
-              <span>Visualizer</span>
-            </button>
-
-            {/* AI Sommelier Button */}
-            <button
-              onClick={() => setIsAiSommelierOpen(true)}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-[#0A3D62] text-[#FBF9F4] hover:bg-[#072B47] rounded-full text-xs font-semibold shadow-xs transition-all cursor-pointer whitespace-nowrap"
-              title="Ask AI Nutritionist"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-[#4E9B36]" />
-              <span className="hidden sm:inline">Advisor</span>
-            </button>
-
             {/* Wishlist */}
             <button
               onClick={() => handleNavClick('shop')}
@@ -313,6 +291,11 @@ export const Navbar: React.FC = () => {
                 {cartItemCount}
               </span>
             </button>
+
+            {/* PWA Install Button */}
+            <div className="hidden sm:block">
+              <PWAInstallButton />
+            </div>
 
             {/* Admin Switcher */}
             <button
@@ -386,19 +369,6 @@ export const Navbar: React.FC = () => {
             </button>
 
             <button
-              onClick={() => {
-                setIsAiStudioOpen(true);
-                setMobileMenuOpen(false);
-              }}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-[#0A3D62] hover:bg-[#EEF5FA] rounded-xl"
-            >
-              <span className="flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 text-[#C6842D]" />
-                <span>AI 4K Image Visualizer</span>
-              </span>
-            </button>
-
-            <button
               onClick={() => handleNavClick('track')}
               className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-[#15222E] hover:bg-[#EEF5FA] rounded-xl"
             >
@@ -413,6 +383,10 @@ export const Navbar: React.FC = () => {
               <BookOpen className="w-4 h-4 text-gray-500" />
               <span>Our Story & Journal</span>
             </button>
+
+            <div className="pt-4 flex justify-center">
+              <PWAInstallButton />
+            </div>
           </div>
         </div>
       )}

@@ -15,8 +15,32 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 app.use(compression());
+
+// Allow iframe embedding within Google AI Studio and preview environments
+app.use((_req, res, next) => {
+  res.removeHeader('X-Frame-Options');
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// LLM & Crawler Discovery endpoints (llmstxt.org specification)
+app.get('/llms.txt', (_req, res) => {
+  res.type('text/plain; charset=utf-8');
+  res.sendFile(path.resolve(__dirname, 'public', 'llms.txt'));
+});
+
+app.get('/llms-full.txt', (_req, res) => {
+  res.type('text/plain; charset=utf-8');
+  res.sendFile(path.resolve(__dirname, 'public', 'llms-full.txt'));
+});
+
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain; charset=utf-8');
+  res.sendFile(path.resolve(__dirname, 'public', 'robots.txt'));
+});
+
 
 // Initialize GoogleGenAI SDK
 const getAiClient = () => {
@@ -213,14 +237,26 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+    // Optimized caching for immutable hashed assets
+    app.use('/assets', express.static(path.resolve(__dirname, 'dist/assets'), {
+      maxAge: '1y',
+      immutable: true,
+      index: false
+    }));
+
+    // Standard static serving for other files (index.html, manifest, icons, robots)
+    app.use(express.static(path.resolve(__dirname, 'dist'), {
+      maxAge: '1h', // Short cache for root files to allow updates
+      index: false
+    }));
+
     app.get('*', (_req, res) => {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Zauq-e-Sehat platform running at http://0.0.0.0:${PORT}`);
+    console.log(`Eirvan Foods platform running at http://0.0.0.0:${PORT}`);
   });
 }
 

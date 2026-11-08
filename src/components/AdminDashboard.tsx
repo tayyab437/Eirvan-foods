@@ -414,7 +414,7 @@ export const AdminDashboard: React.FC = () => {
                   packaging: 'Airtight Vacuum Jar',
                   shelfLife: '12 Months',
                   imageUrl:
-                    'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80',
+                    'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp',
                   galleryImages: [],
                   variants: [
                     {

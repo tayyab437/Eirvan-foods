@@ -3,7 +3,7 @@ import { Product, StoreSettings, Coupon, CustomerReview, BlogPost } from '../typ
 export const INITIAL_SETTINGS: StoreSettings = {
   storeName: 'Eirvan Foods®',
   tagline: 'Natural Goodness • Better Tomorrow',
-  contactPhone: '+92 42 35789120',
+  contactPhone: '+92 317 6369458',
   whatsappNumber: '+92 317 6369458',
   contactEmail: 'care@eirvanfoods.com',
   freeShippingThreshold: 3500, // PKR
@@ -64,11 +64,11 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Kashmir, Gilgit & Balochistan Harvest',
     packaging: 'Airtight Matte Gold Tin with Oxygen Absorber',
     shelfLife: '12 Months in airtight container',
-    imageUrl: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1536591375315-1b83681403bf?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp',
+      'https://images.unsplash.com/photo-1536591375315-1b83681403bf?auto=format&fit=crop&w=480&q=65&fm=webp',
+      'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v1-1', weight: '250g', sku: 'ZDS-MX-250', price: 1650, salePrice: 1499, stock: 45 },
@@ -108,10 +108,10 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Gilgit-Baltistan & Swat Valley',
     packaging: 'Vacuum Sealed Resealable Matte Pouch',
     shelfLife: '9 Months',
-    imageUrl: 'https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=480&q=65&fm=webp',
+      'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v2-1', weight: '250g', sku: 'ZDS-DIA-250', price: 1450, salePrice: 1350, stock: 38 },
@@ -152,10 +152,10 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Kashmir Valley Organic Orchards',
     packaging: 'Airtight Glass Jar with Brass Clip & Seal',
     shelfLife: '12 Months',
-    imageUrl: 'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=480&q=65&fm=webp',
+      'https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v3-1', weight: '250g', sku: 'ZDS-ALM-250', price: 2400, salePrice: 2190, stock: 60 },
@@ -195,10 +195,10 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Hunza & Skardu Valley, Gilgit-Baltistan',
     packaging: 'Nitrogen-Flushed Vacuum Sealed Foil Pack',
     shelfLife: '8 Months (refrigeration recommended in summer)',
-    imageUrl: 'https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?auto=format&fit=crop&w=480&q=65&fm=webp',
+      'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v4-1', weight: '250g', sku: 'ZDS-WAL-250', price: 1750, salePrice: 1599, stock: 50 },
@@ -238,9 +238,9 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Premium Grade Imported & Artisan Himalayan Roasted in Lahore',
     packaging: 'Airtight Matte Pouch with Zip-lock',
     shelfLife: '10 Months',
-    imageUrl: 'https://images.unsplash.com/photo-1536591375315-1b83681403bf?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1536591375315-1b83681403bf?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1536591375315-1b83681403bf?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1536591375315-1b83681403bf?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v5-1', weight: '250g', sku: 'ZDS-CSH-250', price: 1850, salePrice: 1699, stock: 40 },
@@ -280,9 +280,9 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Zhob & Koh-e-Suleiman, Balochistan',
     packaging: 'Luxury Cloth Bag in Velvet Gift Carton',
     shelfLife: '6 Months',
-    imageUrl: 'https://images.unsplash.com/photo-1574545488652-2a97d6b6c387?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1574545488652-2a97d6b6c387?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1574545488652-2a97d6b6c387?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1574545488652-2a97d6b6c387?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v6-1', weight: '250g', sku: 'ZDS-CHL-250', price: 4500, salePrice: 4200, stock: 25 },
@@ -323,9 +323,9 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Handmade in Lahore with Desi Ingredients',
     packaging: 'Amber Glass Mason Jar with Bamboo Lid',
     shelfLife: '6 Months',
-    imageUrl: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v7-1', weight: '250g', sku: 'ZDS-PAN-250', price: 1950, salePrice: 1799, stock: 40 },
@@ -365,9 +365,9 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Sterilized and Lab Tested in Punjab Food Authority standards',
     packaging: 'BPA-Free Vacuum Sealed Container',
     shelfLife: '8 Months',
-    imageUrl: 'https://images.unsplash.com/photo-1505253758473-96b46deae2cd?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1505253758473-96b46deae2cd?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1505253758473-96b46deae2cd?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1505253758473-96b46deae2cd?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v8-1', weight: '100g', sku: 'ZDS-BBY-100', price: 750, stock: 45 },
@@ -408,9 +408,9 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Madinah Al-Munawwarah, Kingdom of Saudi Arabia',
     packaging: 'Laser-Etched Keepsake Gift Box with Velvet Lining',
     shelfLife: '12 Months',
-    imageUrl: 'https://images.unsplash.com/photo-1598030304671-5aa1d6f21128?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1598030304671-5aa1d6f21128?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1598030304671-5aa1d6f21128?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1598030304671-5aa1d6f21128?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v9-1', weight: '250g', sku: 'ZDS-AJW-250', price: 1400, salePrice: 1250, stock: 55 },
@@ -450,9 +450,9 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Kandahar & Chaman Border Orchards',
     packaging: 'Airtight Transparent Food-Grade Jar',
     shelfLife: '12 Months',
-    imageUrl: 'https://images.unsplash.com/photo-1590483736622-39da86788790?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1590483736622-39da86788790?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1590483736622-39da86788790?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1590483736622-39da86788790?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v10-1', weight: '250g', sku: 'ZDS-SUN-250', price: 750, stock: 50 },
@@ -493,9 +493,9 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Crafted by Master Artisans in Chiniot & Lahore',
     packaging: 'Solid Pine Chest inside Gold-Embossed Outer Sleeve',
     shelfLife: '12 Months',
-    imageUrl: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v11-1', weight: '800g Total', sku: 'ZDS-GIFT-PINE', price: 6850, salePrice: 6250, stock: 15 },
@@ -533,9 +533,9 @@ export const INITIAL_PRODUCTS: Product[] = [
     origin: 'Artisanal Hand-Upholstered in Lahore',
     packaging: 'Emerald Velvet Tray with Clear Acrylic Protection Lid',
     shelfLife: '9 Months',
-    imageUrl: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=480&q=65&fm=webp',
     galleryImages: [
-      'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=480&q=65&fm=webp',
     ],
     variants: [
       { id: 'v12-1', weight: '1.2kg Total', sku: 'ZDS-GIFT-EMR', price: 8900, salePrice: 8400, stock: 10 },
@@ -631,7 +631,7 @@ When you soak 7-10 Mamra almonds in water overnight, peel their skin, and consum
     author: 'Hakim Daniyal (Chief Herbalist)',
     readTime: '4 min read',
     date: 'November 4, 2026',
-    imageUrl: 'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=480&q=65&fm=webp',
     tags: ['Almonds', 'Brain Health', 'Nutrition', 'Kashmir'],
   },
   {
@@ -650,7 +650,7 @@ Follow these professional pantry guidelines:
     author: 'Eirvan Foods Quality Lab',
     readTime: '3 min read',
     date: 'October 29, 2026',
-    imageUrl: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp',
     tags: ['Storage Tips', 'Pantry Care', 'Freshness'],
   },
   {
@@ -670,7 +670,7 @@ Enjoying 3 to 7 Ajwa dates daily during breakfast or pre-dawn Sehri offers stead
     author: 'Dr. Ayesha Siddiqa (Dietary Consultant)',
     readTime: '5 min read',
     date: 'October 18, 2026',
-    imageUrl: 'https://images.unsplash.com/photo-1598030304671-5aa1d6f21128?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1598030304671-5aa1d6f21128?auto=format&fit=crop&w=480&q=65&fm=webp',
     tags: ['Ajwa', 'Heart Health', 'Sunnah', 'Dates'],
   },
 ];

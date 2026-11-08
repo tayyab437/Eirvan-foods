@@ -83,7 +83,7 @@ export const HeroSection: React.FC = () => {
                   <source srcSet="/assets/images/hero_mediterranean_pantry_mobile.webp" media="(max-width: 640px)" type="image/webp" />
                   <source srcSet="/assets/images/hero_mediterranean_pantry_1794054052086.webp" type="image/webp" />
                   <img
-                    src="/assets/images/hero_mediterranean_pantry_1794054052086.jpg"
+                    src="/assets/images/hero_mediterranean_pantry_mobile.webp"
                     alt="Eirvan Foods Natural Goodness Dry Fruits Still Life"
                     width="600"
                     height="480"
