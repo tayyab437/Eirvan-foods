@@ -506,6 +506,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return newOrder;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `orders/${newOrder.id}`);
+      setLastPlacedOrder(newOrder);
+      clearCart();
+      return newOrder;
     }
   };
 

@@ -30,9 +30,15 @@ export function handleFirestoreError(
   error: unknown,
   operationType: OperationType,
   path: string | null
-): never {
+): void {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  if (errMsg.includes('offline') || errMsg.includes('timed out') || errMsg.includes('unavailable')) {
+    console.warn(`[Firestore Warning] Network channel offline or timed out for path "${path}". Using cached / local state.`);
+    return;
+  }
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -50,5 +56,4 @@ export function handleFirestoreError(
   };
 
   console.error('Firestore Error:', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
 }

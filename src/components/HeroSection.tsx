@@ -79,15 +79,19 @@ export const HeroSection: React.FC = () => {
             <div className="relative mx-auto max-w-lg lg:max-w-none">
               {/* Main Still Life with Clean Frame */}
               <div className="aspect-4/3 sm:aspect-5/4 rounded-3xl overflow-hidden border border-[#0A3D62]/15 shadow-xl bg-white relative">
-                <img
-                  src="/assets/images/hero_mediterranean_pantry_1794054052086.jpg"
-                  alt="Eirvan Foods Natural Goodness Dry Fruits Still Life"
-                  width="600"
-                  height="480"
-                  fetchPriority="high"
-                  decoding="async"
-                  className="w-full h-full object-cover"
-                />
+                <picture className="w-full h-full">
+                  <source srcSet="/assets/images/hero_mediterranean_pantry_mobile.webp" media="(max-width: 640px)" type="image/webp" />
+                  <source srcSet="/assets/images/hero_mediterranean_pantry_1794054052086.webp" type="image/webp" />
+                  <img
+                    src="/assets/images/hero_mediterranean_pantry_1794054052086.jpg"
+                    alt="Eirvan Foods Natural Goodness Dry Fruits Still Life"
+                    width="600"
+                    height="480"
+                    fetchPriority="high"
+                    decoding="async"
+                    className="w-full h-full object-cover"
+                  />
+                </picture>
 
                 {/* Brand emblem badge overlay */}
                 <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-[#0A3D62]/15 text-[11px] text-[#0A3D62] shadow-sm flex items-center space-x-2">
