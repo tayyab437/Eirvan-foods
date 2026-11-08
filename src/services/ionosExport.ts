@@ -427,15 +427,15 @@ INSERT INTO categories (name, name_urdu, slug, description, display_order) VALUE
 INSERT INTO settings (setting_key, setting_value, description) VALUES
 ('store_name', 'Zauq-e-Sehat (ذوقِ صحت)', 'Official store brand name'),
 ('contact_phone', '+92 42 35789120', 'Customer support telephone line'),
-('whatsapp_number', '+92 300 8472911', 'WhatsApp inquiry channel'),
+('whatsapp_number', '+92 317 6369458', 'WhatsApp inquiry channel'),
 ('currency_code', 'PKR', 'Base store currency'),
 ('free_shipping_threshold', '3500', 'Minimum order amount in PKR for free delivery'),
 ('standard_shipping_rate', '250', 'Flat standard nationwide shipping rate in PKR'),
 ('bank_name', 'Meezan Bank Limited', 'Primary bank for direct transfer'),
-('bank_account_title', 'Zauq-e-Sehat Organics Pvt Ltd', 'Account Title'),
+('bank_account_title', 'Eirvan Foods (Pvt) Ltd', 'Account Title'),
 ('bank_account_number', '02310104829101', 'Account Number'),
 ('bank_iban', 'PK45MEZN0002310104829101', 'International Bank Account Number'),
-('raast_id', '03008472911', 'State Bank of Pakistan Raast ID');
+('raast_id', '03176369458', 'State Bank of Pakistan Raast ID');
 
 -- Coupons
 INSERT INTO coupons (code, discount_type, discount_value, min_order_amount, is_active) VALUES

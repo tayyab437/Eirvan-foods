@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import compression from 'compression';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -13,6 +14,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
+app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -119,45 +121,65 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
 
     const ai = getAiClient();
 
-    // Use gemini-3-pro-image-preview or gemini-nano-banana-2.1 for high-quality generation
-    // User requested gemini-3-pro-image-preview specifically with 1K, 2K, 4K
     const validSizes = ['1K', '2K', '4K'];
     const chosenSize = validSizes.includes(imageSize) ? imageSize : '1K';
 
-    const enhancedPrompt = `Ultra-premium commercial product photography of artisanal luxury dry fruits and nuts packaging for Pakistani brand 'Zauq-e-Sehat'. ${prompt}. Photorealistic, 8k resolution, elegant studio lighting, natural wooden trays, brass accents, vibrant natural colors, appetizing texture, no artificial look.`;
+    const enhancedPrompt = `Ultra-premium commercial product photography of artisanal luxury dry fruits and nuts packaging for Pakistani brand 'Eirvan Foods'. ${prompt}. Photorealistic, 8k resolution, elegant studio lighting, natural wooden trays, brass accents, vibrant natural colors, appetizing texture, no artificial look.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
-      contents: {
-        parts: [
-          {
-            text: enhancedPrompt,
-          },
-        ],
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: aspectRatio as any,
-          imageSize: chosenSize as any,
-        },
-      },
-    });
-
+    const candidateModels = ['gemini-3-pro-image', 'gemini-nano-banana-2.1', 'gemini-3.1-flash-lite-image'];
+    let lastError: any = null;
     let imageUrl: string | null = null;
     let descriptionText = '';
 
-    for (const part of response.candidates?.[0]?.content?.parts ?? []) {
-      if (part.inlineData?.data) {
-        const mime = part.inlineData.mimeType || 'image/png';
-        imageUrl = `data:${mime};base64,${part.inlineData.data}`;
-      } else if (part.text) {
-        descriptionText += part.text;
+    for (const modelName of candidateModels) {
+      try {
+        const config: any = {
+          imageConfig: {
+            aspectRatio: aspectRatio as any,
+          },
+        };
+
+        if (modelName !== 'gemini-3.1-flash-lite-image') {
+          config.imageConfig.imageSize = chosenSize;
+        }
+
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: {
+            parts: [
+              {
+                text: enhancedPrompt,
+              },
+            ],
+          },
+          config,
+        });
+
+        for (const part of response.candidates?.[0]?.content?.parts ?? []) {
+          if (part.inlineData?.data) {
+            const mime = part.inlineData.mimeType || 'image/png';
+            imageUrl = `data:${mime};base64,${part.inlineData.data}`;
+          } else if (part.text) {
+            descriptionText += part.text;
+          }
+        }
+
+        if (imageUrl) {
+          break;
+        }
+      } catch (err: any) {
+        console.warn(`Model ${modelName} image generation failed:`, err?.message);
+        lastError = err;
       }
     }
 
     if (!imageUrl) {
-      return res.status(500).json({
-        error: 'No image was returned by the model.',
+      const isQuota = lastError?.message?.includes('429') || lastError?.message?.includes('RESOURCE_EXHAUSTED') || lastError?.message?.includes('Quota exceeded');
+      return res.status(isQuota ? 429 : 500).json({
+        error: isQuota
+          ? 'Free Tier Image Quota Exceeded. Image models require a paid billing API key or selection of curated studio presets.'
+          : lastError?.message || 'No image was returned by Gemini.',
+        isQuotaExceeded: isQuota,
         details: descriptionText,
       });
     }
@@ -170,8 +192,12 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error in /api/generate-image:', error);
-    return res.status(500).json({
-      error: error?.message || 'Failed to generate image.',
+    const isQuota = error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED') || error?.message?.includes('Quota exceeded');
+    return res.status(isQuota ? 429 : 500).json({
+      error: isQuota
+        ? 'Free Tier Image Quota Exceeded. Image models require a paid billing API key or selection of curated studio presets.'
+        : error?.message || 'Failed to generate image.',
+      isQuotaExceeded: isQuota,
     });
   }
 });

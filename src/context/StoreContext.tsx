@@ -131,75 +131,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         setIsFirebaseSyncing(true);
 
-        // Check if database needs seeding
-        const productsSnap = await getDocs(collection(db, 'products'));
-        if (productsSnap.empty && !seedingInProgress.current) {
-          seedingInProgress.current = true;
-          console.log('Seeding initial Firestore database collections...');
-          const batch = writeBatch(db);
-
-          // Seed Products
-          INITIAL_PRODUCTS.forEach((prod) => {
-            const docRef = doc(db, 'products', prod.id);
-            batch.set(docRef, prod);
-          });
-
-          // Seed Settings
-          const settingsRef = doc(db, 'settings', 'main');
-          batch.set(settingsRef, INITIAL_SETTINGS);
-
-          // Seed Coupons
-          INITIAL_COUPONS.forEach((c) => {
-            const couponRef = doc(db, 'coupons', c.code);
-            batch.set(couponRef, c);
-          });
-
-          // Seed Reviews
-          INITIAL_REVIEWS.forEach((r) => {
-            const reviewRef = doc(db, 'reviews', r.id);
-            batch.set(reviewRef, r);
-          });
-
-          // Seed Sample Initial Order
-          const initialOrder: Order = {
-            id: 'ord-init-1',
-            orderNumber: 'ZDS-2026-8421',
-            createdAt: '2026-11-06T14:20:00Z',
-            customerName: 'Hamza Tariq',
-            customerPhone: '0300-4829102',
-            customerEmail: 'hamza.t@gmail.com',
-            city: 'Lahore',
-            province: 'Punjab',
-            address: 'House 42, Sector Y, Phase 3, DHA',
-            subtotal: 5950,
-            shippingFee: 0,
-            discountAmount: 0,
-            totalAmount: 5950,
-            paymentMethod: 'COD',
-            paymentStatus: 'Pending',
-            orderStatus: 'Shipped',
-            trackingNumber: 'TCS-928173491',
-            courier: 'TCS Express Pakistan',
-            items: [
-              {
-                productId: 'prod-1',
-                productName: 'Royal Shahi Trail Mix',
-                variantWeight: '1kg',
-                sku: 'ZDS-MX-1KG',
-                price: 5950,
-                quantity: 1,
-                subtotal: 5950,
-                imageUrl: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80',
-              },
-            ],
-          };
-          batch.set(doc(db, 'orders', initialOrder.id), initialOrder);
-
-          await batch.commit();
-          console.log('Firestore collections seeded successfully.');
-        }
-
-        // Attach Real-Time Listeners with proper error handling
+        // Attach Real-Time Listeners immediately to prevent initial network chain delays
         unsubProducts = onSnapshot(
           collection(db, 'products'),
           (snapshot) => {
@@ -209,11 +141,75 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 loadedProducts.push(docSnap.data() as Product);
               });
               setProducts(loadedProducts);
+            } else if (!seedingInProgress.current) {
+              // Seed database if empty
+              seedingInProgress.current = true;
+              console.log('Seeding initial Firestore database collections...');
+              const batch = writeBatch(db);
+
+              INITIAL_PRODUCTS.forEach((prod) => {
+                const docRef = doc(db, 'products', prod.id);
+                batch.set(docRef, prod);
+              });
+
+              const settingsRef = doc(db, 'settings', 'main');
+              batch.set(settingsRef, INITIAL_SETTINGS);
+
+              INITIAL_COUPONS.forEach((c) => {
+                const couponRef = doc(db, 'coupons', c.code);
+                batch.set(couponRef, c);
+              });
+
+              INITIAL_REVIEWS.forEach((r) => {
+                const reviewRef = doc(db, 'reviews', r.id);
+                batch.set(reviewRef, r);
+              });
+
+              const initialOrder: Order = {
+                id: 'ord-init-1',
+                orderNumber: 'ZDS-2026-8421',
+                createdAt: '2026-11-06T14:20:00Z',
+                customerName: 'Hamza Tariq',
+                customerPhone: '0300-4829102',
+                customerEmail: 'hamza.t@gmail.com',
+                city: 'Lahore',
+                province: 'Punjab',
+                address: 'House 42, Sector Y, Phase 3, DHA',
+                subtotal: 5950,
+                shippingFee: 0,
+                discountAmount: 0,
+                totalAmount: 5950,
+                paymentMethod: 'COD',
+                paymentStatus: 'Pending',
+                orderStatus: 'Shipped',
+                trackingNumber: 'TCS-928173491',
+                courier: 'TCS Express Pakistan',
+                items: [
+                  {
+                    productId: 'prod-1',
+                    productName: 'Royal Shahi Trail Mix',
+                    variantWeight: '1kg',
+                    sku: 'ZDS-MX-1KG',
+                    price: 5950,
+                    quantity: 1,
+                    subtotal: 5950,
+                    imageUrl: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80',
+                  },
+                ],
+              };
+              batch.set(doc(db, 'orders', initialOrder.id), initialOrder);
+
+              batch.commit().then(() => {
+                console.log('Firestore collections seeded successfully.');
+              }).catch(err => {
+                console.error('Error committing seed batch:', err);
+              });
             }
             setIsFirebaseSyncing(false);
           },
           (error) => {
             handleFirestoreError(error, OperationType.GET, 'products');
+            setIsFirebaseSyncing(false);
           }
         );
 

@@ -4,7 +4,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
   storeName: 'Eirvan Foods®',
   tagline: 'Natural Goodness • Better Tomorrow',
   contactPhone: '+92 42 35789120',
-  whatsappNumber: '+92 300 8472911',
+  whatsappNumber: '+92 317 6369458',
   contactEmail: 'care@eirvanfoods.com',
   freeShippingThreshold: 3500, // PKR
   standardShippingRate: 250, // PKR
@@ -14,7 +14,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
     accountTitle: 'Eirvan Foods (Pvt) Ltd',
     accountNumber: '02310104829101',
     iban: 'PK45MEZN0002310104829101',
-    raastId: '03008472911',
+    raastId: '03176369458',
   },
   announcementBarMessage: '🚚 Nationwide Delivery Across Pakistan • FREE Shipping on Orders Over Rs. 3,500 • Fresh 2026 Winter Harvest',
   announcementActive: true,

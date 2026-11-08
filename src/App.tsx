@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
 import { StoreProvider, useStore } from './context/StoreContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
@@ -7,14 +7,16 @@ import { CategoryGrid } from './components/CategoryGrid';
 import { ProductCard } from './components/ProductCard';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { CartDrawer } from './components/CartDrawer';
-import { GiftBoxBuilder } from './components/GiftBoxBuilder';
-import { AiImageStudio } from './components/AiImageStudio';
-import { AiSommelierChat } from './components/AiSommelierChat';
-import { CheckoutView } from './components/CheckoutView';
-import { OrderTrackingView } from './components/OrderTrackingView';
-import { BlogView } from './components/BlogView';
-import { AdminDashboard } from './components/AdminDashboard';
 import { WhatsAppButton } from './components/WhatsAppButton';
+
+// Lazy-loaded secondary components for code-splitting & reduced initial JS bundle size
+const GiftBoxBuilder = lazy(() => import('./components/GiftBoxBuilder').then(m => ({ default: m.GiftBoxBuilder })));
+const AiImageStudio = lazy(() => import('./components/AiImageStudio').then(m => ({ default: m.AiImageStudio })));
+const AiSommelierChat = lazy(() => import('./components/AiSommelierChat').then(m => ({ default: m.AiSommelierChat })));
+const CheckoutView = lazy(() => import('./components/CheckoutView').then(m => ({ default: m.CheckoutView })));
+const OrderTrackingView = lazy(() => import('./components/OrderTrackingView').then(m => ({ default: m.OrderTrackingView })));
+const BlogView = lazy(() => import('./components/BlogView').then(m => ({ default: m.BlogView })));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 import {
   Sparkles,
   ShoppingBag,
@@ -83,7 +85,7 @@ const MainContent: React.FC = () => {
     },
     {
       q: 'Can I customize gift boxes for weddings or corporate events?',
-      a: 'Yes! Use our interactive "Artisan Gift Box Builder" to select keepsake wooden boxes or olive linen gift hampers, choose 4 to 6 dry fruit jars, select satin ribbon colors, and add personalized calligraphy greeting notes. For large corporate bulk orders, reach out via WhatsApp at +92 300 8472911.',
+      a: 'Yes! Use our interactive "Artisan Gift Box Builder" to select keepsake wooden boxes or olive linen gift hampers, choose 4 to 6 dry fruit jars, select satin ribbon colors, and add personalized calligraphy greeting notes. For large corporate bulk orders, reach out via WhatsApp at +92 317 6369458.',
     },
     {
       q: 'How are Kashmiri Mamra almonds different from regular almonds?',
@@ -181,19 +183,19 @@ const MainContent: React.FC = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-[#E7DDCA]">
                     <div>
-                      <h4 className="font-serif text-base text-[#344B36]">100% Single-Origin</h4>
+                      <h3 className="font-serif text-base text-[#344B36]">100% Single-Origin</h3>
                       <p className="text-[11px] text-[#302A25]/60 mt-1 font-light">
                         Harvested from verified mountain micro-groves.
                       </p>
                     </div>
                     <div>
-                      <h4 className="font-serif text-base text-[#344B36]">Zero Bleach</h4>
+                      <h3 className="font-serif text-base text-[#344B36]">Zero Bleach</h3>
                       <p className="text-[11px] text-[#302A25]/60 mt-1 font-light">
                         Raw natural shell color and intact essential oils.
                       </p>
                     </div>
                     <div>
-                      <h4 className="font-serif text-base text-[#344B36]">Cold Milled</h4>
+                      <h3 className="font-serif text-base text-[#344B36]">Cold Milled</h3>
                       <p className="text-[11px] text-[#302A25]/60 mt-1 font-light">
                         Stone-ground Panjiri kept below 35°C to preserve enzymes.
                       </p>
@@ -235,21 +237,21 @@ const MainContent: React.FC = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-3">
                     <div className="p-4 bg-[#F7F4EC] border border-[#E7DDCA]/70">
-                      <h4 className="font-serif text-base text-[#344B36]">Morning Vitality</h4>
+                      <h3 className="font-serif text-base text-[#344B36]">Morning Vitality</h3>
                       <p className="text-[11px] text-[#302A25]/70 mt-1.5 leading-relaxed font-light">
                         One warm spoon stirred into saffron almond milk for daylong cognitive focus.
                       </p>
                     </div>
 
                     <div className="p-4 bg-[#F7F4EC] border border-[#E7DDCA]/70">
-                      <h4 className="font-serif text-base text-[#344B36]">Toddler Nutrition</h4>
+                      <h3 className="font-serif text-base text-[#344B36]">Toddler Nutrition</h3>
                       <p className="text-[11px] text-[#302A25]/70 mt-1.5 leading-relaxed font-light">
                         Gentle protein and healthy fats without refined sugar or grain fillers.
                       </p>
                     </div>
 
                     <div className="p-4 bg-[#F7F4EC] border border-[#E7DDCA]/70">
-                      <h4 className="font-serif text-base text-[#344B36]">Culinary Dusting</h4>
+                      <h3 className="font-serif text-base text-[#344B36]">Culinary Dusting</h3>
                       <p className="text-[11px] text-[#302A25]/70 mt-1.5 leading-relaxed font-light">
                         Artisan pistachio and cashew powder over traditional halwas and yogurts.
                       </p>
@@ -415,7 +417,7 @@ const MainContent: React.FC = () => {
                     &quot;The Kashmiri Mamra almonds are visibly oil-rich with a sweet crunch unlike any commercial store almond. The vacuum seal kept them as crisp as harvest day.&quot;
                   </p>
                   <div className="pt-2 border-t border-[#E7DDCA]/60">
-                    <h5 className="font-serif text-sm text-[#302A25] font-semibold">Dr. Zainab K.</h5>
+                    <h3 className="font-serif text-sm text-[#302A25] font-semibold">Dr. Zainab K.</h3>
                     <p className="text-[11px] font-mono text-[#302A25]/50">Model Town, Lahore</p>
                   </div>
                 </div>
@@ -430,7 +432,7 @@ const MainContent: React.FC = () => {
                     &quot;We ordered 45 bespoke olive keepsake boxes for our corporate Eid gifts. The brass fittings and single-origin walnuts were praised by every single recipient.&quot;
                   </p>
                   <div className="pt-2 border-t border-[#E7DDCA]/60">
-                    <h5 className="font-serif text-sm text-[#302A25] font-semibold">Hamza Farooq</h5>
+                    <h3 className="font-serif text-sm text-[#302A25] font-semibold">Hamza Farooq</h3>
                     <p className="text-[11px] font-mono text-[#302A25]/50">Blue Area, Islamabad</p>
                   </div>
                 </div>
@@ -445,7 +447,7 @@ const MainContent: React.FC = () => {
                     &quot;The stone-ground Shahi Panjiri is a staple in our home now. Completely sugar-free, fragrant with cardamom, and pure restorative nourishment.&quot;
                   </p>
                   <div className="pt-2 border-t border-[#E7DDCA]/60">
-                    <h5 className="font-serif text-sm text-[#302A25] font-semibold">Mariam Tariq</h5>
+                    <h3 className="font-serif text-sm text-[#302A25] font-semibold">Mariam Tariq</h3>
                     <p className="text-[11px] font-mono text-[#302A25]/50">Clifton, Karachi</p>
                   </div>
                 </div>
@@ -706,26 +708,48 @@ const MainContent: React.FC = () => {
         )}
 
         {/* VIEW 3: CUSTOM GIFT BUILDER */}
-        {activeView === 'gift-builder' && <GiftBoxBuilder />}
+        {activeView === 'gift-builder' && (
+          <Suspense fallback={<div className="min-h-[400px] flex items-center justify-center font-sans text-xs text-[#0A3D62] font-semibold">Loading Gift Builder...</div>}>
+            <GiftBoxBuilder />
+          </Suspense>
+        )}
 
         {/* VIEW 4: HEALTH GUIDES / BLOG */}
-        {activeView === 'blog' && <BlogView />}
+        {activeView === 'blog' && (
+          <Suspense fallback={<div className="min-h-[400px] flex items-center justify-center font-sans text-xs text-[#0A3D62] font-semibold">Loading Health & Culinary Journal...</div>}>
+            <BlogView />
+          </Suspense>
+        )}
 
         {/* VIEW 5: ORDER TRACKING */}
-        {activeView === 'track' && <OrderTrackingView />}
+        {activeView === 'track' && (
+          <Suspense fallback={<div className="min-h-[400px] flex items-center justify-center font-sans text-xs text-[#0A3D62] font-semibold">Loading Order Tracker...</div>}>
+            <OrderTrackingView />
+          </Suspense>
+        )}
 
         {/* VIEW 6: CHECKOUT */}
-        {activeView === 'checkout' && <CheckoutView />}
+        {activeView === 'checkout' && (
+          <Suspense fallback={<div className="min-h-[400px] flex items-center justify-center font-sans text-xs text-[#0A3D62] font-semibold">Preparing Secure Checkout...</div>}>
+            <CheckoutView />
+          </Suspense>
+        )}
 
         {/* VIEW 7: ADMIN DASHBOARD */}
-        {activeView === 'admin' && <AdminDashboard />}
+        {activeView === 'admin' && (
+          <Suspense fallback={<div className="min-h-[400px] flex items-center justify-center font-sans text-xs text-[#0A3D62] font-semibold">Loading Admin Portal...</div>}>
+            <AdminDashboard />
+          </Suspense>
+        )}
       </main>
 
       {/* Global Modals & Overlays */}
       <ProductDetailModal />
       <CartDrawer />
-      <AiImageStudio />
-      <AiSommelierChat />
+      <Suspense fallback={null}>
+        <AiImageStudio />
+        <AiSommelierChat />
+      </Suspense>
       <WhatsAppButton />
 
       <Footer />

@@ -82,6 +82,10 @@ export const HeroSection: React.FC = () => {
                 <img
                   src="/src/assets/images/hero_mediterranean_pantry_1794054052086.jpg"
                   alt="Eirvan Foods Natural Goodness Dry Fruits Still Life"
+                  width="600"
+                  height="480"
+                  fetchPriority="high"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
 
@@ -90,6 +94,9 @@ export const HeroSection: React.FC = () => {
                   <img
                     src="/assets/aistudio/Eirvan_Foods_Natural_Goodness_Logo_8d5cce5b.png"
                     alt="Eirvan Foods emblem"
+                    width="24"
+                    height="24"
+                    decoding="async"
                     className="w-6 h-6 object-contain"
                   />
                   <span className="font-bold tracking-wider text-[10px] uppercase font-sans">100% Pure &amp; Natural</span>
@@ -115,9 +122,9 @@ export const HeroSection: React.FC = () => {
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-xs uppercase tracking-wider font-bold text-[#0A3D62]">
+                <h2 className="text-xs uppercase tracking-wider font-bold text-[#0A3D62]">
                   Carefully Selected
-                </h4>
+                </h2>
                 <p className="text-[11px] text-[#15222E]/70 leading-snug">
                   Hand-inspected single-origin mountain harvests.
                 </p>
@@ -129,9 +136,9 @@ export const HeroSection: React.FC = () => {
                 <PackageCheck className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-xs uppercase tracking-wider font-bold text-[#0A3D62]">
+                <h2 className="text-xs uppercase tracking-wider font-bold text-[#0A3D62]">
                   Thoughtful Packaging
-                </h4>
+                </h2>
                 <p className="text-[11px] text-[#15222E]/70 leading-snug">
                   Airtight vacuum seals preserving delicate natural oils.
                 </p>
@@ -143,9 +150,9 @@ export const HeroSection: React.FC = () => {
                 <Truck className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-xs uppercase tracking-wider font-bold text-[#0A3D62]">
+                <h2 className="text-xs uppercase tracking-wider font-bold text-[#0A3D62]">
                   Convenient Ordering
-                </h4>
+                </h2>
                 <p className="text-[11px] text-[#15222E]/70 leading-snug">
                   Nationwide Cash on Delivery &amp; Bank Transfer across Pakistan.
                 </p>
@@ -157,9 +164,9 @@ export const HeroSection: React.FC = () => {
                 <HeartHandshake className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-xs uppercase tracking-wider font-bold text-[#0A3D62]">
+                <h2 className="text-xs uppercase tracking-wider font-bold text-[#0A3D62]">
                   Customer Support
-                </h4>
+                </h2>
                 <p className="text-[11px] text-[#15222E]/70 leading-snug">
                   Dedicated care helpline &amp; 7-day freshness guarantee.
                 </p>

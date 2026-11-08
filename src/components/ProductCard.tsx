@@ -40,8 +40,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         <img
           src={product.imageUrl}
           alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-104 transition-transform duration-500"
+          width="400"
+          height="300"
+          decoding="async"
           loading="lazy"
+          className="w-full h-full object-cover group-hover:scale-104 transition-transform duration-500"
         />
 
         {/* Minimalist Top Badges (Restrained) */}

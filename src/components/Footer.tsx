@@ -41,7 +41,7 @@ export const Footer: React.FC = () => {
               <Truck className="w-5 h-5 text-[#4E9B36]" />
             </div>
             <div>
-              <h4 className="text-sm font-semibold tracking-wide text-[#FBF9F4]">Nationwide Delivery</h4>
+              <h2 className="text-sm font-semibold tracking-wide text-[#FBF9F4]">Nationwide Delivery</h2>
               <p className="text-xs text-[#EEF5FA]/80 mt-1 leading-relaxed">24–48h in Lahore & ICT • Cash on Delivery nationwide</p>
             </div>
           </div>
@@ -51,7 +51,7 @@ export const Footer: React.FC = () => {
               <ShieldCheck className="w-5 h-5 text-[#4E9B36]" />
             </div>
             <div>
-              <h4 className="text-sm font-semibold tracking-wide text-[#FBF9F4]">100% Single-Origin</h4>
+              <h2 className="text-sm font-semibold tracking-wide text-[#FBF9F4]">100% Single-Origin</h2>
               <p className="text-xs text-[#EEF5FA]/80 mt-1 leading-relaxed">Pristine harvests, zero bleaching or artificial glazes</p>
             </div>
           </div>
@@ -61,7 +61,7 @@ export const Footer: React.FC = () => {
               <RotateCcw className="w-5 h-5 text-[#4E9B36]" />
             </div>
             <div>
-              <h4 className="text-sm font-semibold tracking-wide text-[#FBF9F4]">Freshness Guarantee</h4>
+              <h2 className="text-sm font-semibold tracking-wide text-[#FBF9F4]">Freshness Guarantee</h2>
               <p className="text-xs text-[#EEF5FA]/80 mt-1 leading-relaxed">Airtight canisters & nitrogen-flushed seal packaging</p>
             </div>
           </div>
@@ -71,7 +71,7 @@ export const Footer: React.FC = () => {
               <CheckCircle2 className="w-5 h-5 text-[#4E9B36]" />
             </div>
             <div>
-              <h4 className="text-sm font-semibold tracking-wide text-[#FBF9F4]">Direct Farm Sourcing</h4>
+              <h2 className="text-sm font-semibold tracking-wide text-[#FBF9F4]">Direct Farm Sourcing</h2>
               <p className="text-xs text-[#EEF5FA]/80 mt-1 leading-relaxed">Gilgit, Kashmir, Swat Valley & Balochistan groves</p>
             </div>
           </div>
@@ -87,7 +87,11 @@ export const Footer: React.FC = () => {
               <div className="w-14 h-14 rounded-xl bg-white p-1.5 shadow-md flex items-center justify-center shrink-0 border border-white/20">
                 <img
                   src="/assets/aistudio/Eirvan_Foods_Natural_Goodness_Logo_8d5cce5b.png"
-                  alt="Eirvan Foods"
+                  alt="Eirvan Foods - Natural Goodness • Better Tomorrow"
+                  width="56"
+                  height="56"
+                  decoding="async"
+                  loading="lazy"
                   className="w-full h-full object-contain"
                 />
               </div>
@@ -132,9 +136,9 @@ export const Footer: React.FC = () => {
 
           {/* Sourcing & Categories */}
           <div>
-            <h4 className="font-serif text-base tracking-wide text-[#C6842D] mb-4">
+            <h2 className="font-serif text-base tracking-wide text-[#C6842D] mb-4">
               Pantry Collections
-            </h4>
+            </h2>
             <ul className="space-y-2.5 text-xs text-[#EEF5FA] tracking-wide">
               <li>
                 <button
@@ -182,9 +186,9 @@ export const Footer: React.FC = () => {
 
           {/* Customer Service & Policies */}
           <div>
-            <h4 className="font-serif text-base tracking-wide text-[#C6842D] mb-4">
+            <h2 className="font-serif text-base tracking-wide text-[#C6842D] mb-4">
               Care & Guidance
-            </h4>
+            </h2>
             <ul className="space-y-2.5 text-xs text-[#EEF5FA] tracking-wide">
               <li>
                 <button
@@ -231,9 +235,9 @@ export const Footer: React.FC = () => {
 
           {/* Newsletter */}
           <div>
-            <h4 className="font-serif text-base tracking-wide text-[#C6842D] mb-4">
+            <h2 className="font-serif text-base tracking-wide text-[#C6842D] mb-4">
               Seasonal Harvest Alerts
-            </h4>
+            </h2>
             <p className="text-xs text-[#EEF5FA]/80 mb-3.5 leading-relaxed font-light">
               Receive notifications when fresh seasonal batches arrive—Chilgoza pine nuts, freshly stone-ground panjiri, and bespoke holiday collections.
             </p>

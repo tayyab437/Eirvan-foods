@@ -95,50 +95,48 @@ export const Navbar: React.FC = () => {
       )}
 
       {/* 3.2 Main Navigation Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20 gap-8">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 w-full max-w-full overflow-hidden">
+        <div className="flex items-center justify-between h-16 sm:h-20 gap-2 sm:gap-4 lg:gap-6 w-full">
           {/* Mobile menu trigger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg text-[#0A3D62] hover:bg-[#EEF5FA] transition-colors"
+            className="lg:hidden p-1.5 sm:p-2 rounded-lg text-[#0A3D62] hover:bg-[#EEF5FA] transition-colors shrink-0"
             aria-label="Toggle navigation menu"
           >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {mobileMenuOpen ? <X className="w-5 h-5 sm:w-6 sm:h-6" /> : <Menu className="w-5 h-5 sm:w-6 sm:h-6" />}
           </button>
 
           {/* Logo & Brand Identity (Zone 1) with Official Eirvan Foods Logo Asset */}
           <div
             onClick={() => handleNavClick('home')}
-            className="flex items-center space-x-3 cursor-pointer group shrink-0"
+            className="flex items-center space-x-1.5 sm:space-x-2.5 cursor-pointer group shrink-0"
           >
-            <div className="h-12 sm:h-14 flex items-center justify-center">
+            <div className="h-9 sm:h-12 flex items-center justify-center shrink-0">
               <img
                 src="/assets/aistudio/Eirvan_Foods_Natural_Goodness_Logo_8d5cce5b.png"
                 alt="Eirvan Foods - Natural Goodness • Better Tomorrow"
-                className="h-12 sm:h-14 w-auto object-contain drop-shadow-xs group-hover:scale-102 transition-transform"
+                width="240"
+                height="56"
+                decoding="async"
+                className="h-9 sm:h-12 w-auto object-contain drop-shadow-xs group-hover:scale-102 transition-transform"
               />
             </div>
-            <div>
-              <div className="flex items-baseline space-x-1.5">
-                <span
-                  className="text-xl sm:text-2xl font-bold text-[#0A3D62] tracking-wide group-hover:text-[#4E9B36] transition-colors"
-                  style={{ fontFamily: 'Cinzel, Georgia, serif' }}
-                >
-                  EIRVAN
-                </span>
-                <span className="text-xs sm:text-sm font-sans font-extrabold text-[#0A3D62] tracking-wider uppercase">
-                  FOODS
-                </span>
-                <span className="text-[10px] text-[#0A3D62] font-mono">®</span>
-              </div>
-              <p className="text-[9px] tracking-[0.22em] uppercase font-bold text-[#4E9B36] -mt-1 font-sans">
-                Natural Goodness • Better Tomorrow
-              </p>
+            <div className="flex items-baseline space-x-1">
+              <span
+                className="text-lg sm:text-2xl font-bold text-[#0A3D62] tracking-wide group-hover:text-[#4E9B36] transition-colors"
+                style={{ fontFamily: 'Cinzel, Georgia, serif' }}
+              >
+                EIRVAN
+              </span>
+              <span className="text-[10px] sm:text-xs font-sans font-extrabold text-[#0A3D62] tracking-wider uppercase">
+                FOODS
+              </span>
+              <span className="text-[10px] text-[#0A3D62] font-mono">®</span>
             </div>
           </div>
 
           {/* Desktop Navigation Links (Zone 2) */}
-          <nav className="hidden lg:flex items-center space-x-8 text-sm font-medium text-[#15222E]">
+          <nav className="hidden lg:flex items-center gap-2.5 xl:gap-6 text-xs xl:text-sm font-medium text-[#15222E]">
             <button
               onClick={() => handleNavClick('home')}
               className={`hover:text-[#0A3D62] transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
@@ -202,7 +200,7 @@ export const Navbar: React.FC = () => {
           </nav>
 
           {/* Right Action Controls (Zone 3) */}
-          <div className="flex items-center space-x-3 sm:space-x-4 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2.5 lg:gap-3 shrink-0">
             {/* Search Button */}
             <div className="relative">
               <button
