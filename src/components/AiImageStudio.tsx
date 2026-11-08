@@ -288,22 +288,22 @@ export const AiImageStudio: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2 text-left">
                   <div
-                    onClick={() => setGeneratedImage('/src/assets/images/luxury_olive_gift_box_1794054054136.jpg')}
+                    onClick={() => setGeneratedImage('/assets/images/luxury_olive_gift_box_1794054054136.jpg')}
                     className="p-2 bg-white rounded-xl border border-[#0A3D62]/15 hover:border-[#0A3D62] cursor-pointer transition-colors group"
                   >
                     <div className="aspect-4/3 rounded-lg overflow-hidden mb-1.5 bg-gray-100">
-                      <img src="/src/assets/images/luxury_olive_gift_box_1794054054136.jpg" alt="Artisan Olive Gift Chest" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <img src="/assets/images/luxury_olive_gift_box_1794054054136.jpg" alt="Artisan Olive Gift Chest" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     </div>
                     <span className="text-[11px] font-bold text-[#0A3D62] block truncate">Olive Keepsake Chest</span>
                     <span className="text-[10px] text-[#4E9B36] font-mono">4K Studio Capture</span>
                   </div>
 
                   <div
-                    onClick={() => setGeneratedImage('/src/assets/images/hero_mediterranean_pantry_1794054052086.jpg')}
+                    onClick={() => setGeneratedImage('/assets/images/hero_mediterranean_pantry_1794054052086.jpg')}
                     className="p-2 bg-white rounded-xl border border-[#0A3D62]/15 hover:border-[#0A3D62] cursor-pointer transition-colors group"
                   >
                     <div className="aspect-4/3 rounded-lg overflow-hidden mb-1.5 bg-gray-100">
-                      <img src="/src/assets/images/hero_mediterranean_pantry_1794054052086.jpg" alt="Mediterranean Pantry Table" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <img src="/assets/images/hero_mediterranean_pantry_1794054052086.jpg" alt="Mediterranean Pantry Table" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     </div>
                     <span className="text-[11px] font-bold text-[#0A3D62] block truncate">Mediterranean Table</span>
                     <span className="text-[10px] text-[#4E9B36] font-mono">4K Studio Capture</span>

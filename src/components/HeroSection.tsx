@@ -80,7 +80,7 @@ export const HeroSection: React.FC = () => {
               {/* Main Still Life with Clean Frame */}
               <div className="aspect-4/3 sm:aspect-5/4 rounded-3xl overflow-hidden border border-[#0A3D62]/15 shadow-xl bg-white relative">
                 <img
-                  src="/src/assets/images/hero_mediterranean_pantry_1794054052086.jpg"
+                  src="/assets/images/hero_mediterranean_pantry_1794054052086.jpg"
                   alt="Eirvan Foods Natural Goodness Dry Fruits Still Life"
                   width="600"
                   height="480"

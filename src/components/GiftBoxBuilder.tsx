@@ -27,7 +27,7 @@ const BOX_OPTIONS: BoxOption[] = [
     urduName: 'آرٹیسن اولیو باکس',
     capacity: 4,
     basePrice: 1950,
-    image: '/src/assets/images/luxury_olive_gift_box_1794054054136.jpg',
+    image: '/assets/images/luxury_olive_gift_box_1794054054136.jpg',
     description: 'Deep olive green rigid matte chest with warm cream typographic label and satin grosgrain ribbon.',
   },
   {
@@ -106,7 +106,7 @@ const FILLINGS: DryFruitFilling[] = [
     name: 'Shahi Royal Panjiri Jar',
     weightGrams: 200,
     price: 1450,
-    image: '/src/assets/images/dry_fruit_powders_culinary_1794054053020.jpg',
+    image: '/assets/images/dry_fruit_powders_culinary_1794054053020.jpg',
   },
 ];
 

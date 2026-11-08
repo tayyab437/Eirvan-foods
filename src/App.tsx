@@ -148,7 +148,7 @@ const MainContent: React.FC = () => {
                 <div className="lg:col-span-6 relative">
                   <div className="aspect-4/3 sm:aspect-5/4 overflow-hidden border border-[#E7DDCA] shadow-lg bg-white">
                     <img
-                      src="/src/assets/images/editorial_brand_story_1794054052483.jpg"
+                      src="/assets/images/editorial_brand_story_1794054052483.jpg"
                       alt="Artisanal hands selecting sun-cured nuts and dates on olive wood"
                       className="w-full h-full object-cover hover:scale-102 transition-transform duration-700"
                     />
@@ -276,7 +276,7 @@ const MainContent: React.FC = () => {
                 <div className="lg:col-span-5">
                   <div className="aspect-4/3 sm:aspect-square overflow-hidden border border-[#E7DDCA] shadow-md bg-[#F7F4EC]">
                     <img
-                      src="/src/assets/images/dry_fruit_powders_culinary_1794054053020.jpg"
+                      src="/assets/images/dry_fruit_powders_culinary_1794054053020.jpg"
                       alt="Golden stone-ground dry fruit powder dusting a wooden spoon over cardamom almond milk"
                       className="w-full h-full object-cover hover:scale-102 transition-transform duration-700"
                     />
@@ -387,7 +387,7 @@ const MainContent: React.FC = () => {
 
                 <div className="lg:col-span-5 h-full min-h-[320px] lg:min-h-[460px] relative overflow-hidden">
                   <img
-                    src="/src/assets/images/luxury_olive_gift_box_1794054054136.jpg"
+                    src="/assets/images/luxury_olive_gift_box_1794054054136.jpg"
                     alt="Luxury deep olive green matte gift box with cream label and brass ribbon"
                     className="w-full h-full object-cover"
                   />

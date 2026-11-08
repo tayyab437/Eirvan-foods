@@ -34,7 +34,7 @@ export const CategoryGrid: React.FC = () => {
       id: 'powders',
       title: 'Dry Fruit Powders & Panjiri',
       subtitle: 'Nutrient-dense stone-ground preparations for milk, tea, and convalescence',
-      image: '/src/assets/images/dry_fruit_powders_culinary_1794054053020.jpg',
+      image: '/assets/images/dry_fruit_powders_culinary_1794054053020.jpg',
       tag: 'Stone-Ground',
       span: 'lg:col-span-4',
       aspect: 'aspect-4/3',
@@ -52,7 +52,7 @@ export const CategoryGrid: React.FC = () => {
       id: 'gift-boxes',
       title: 'Gift Collections',
       subtitle: 'Handcrafted Chiniot pinewood chests and royal emerald velvet presentations',
-      image: '/src/assets/images/luxury_olive_gift_box_1794054054136.jpg',
+      image: '/assets/images/luxury_olive_gift_box_1794054054136.jpg',
       tag: 'Artisanal Keepsakes',
       span: 'lg:col-span-4',
       aspect: 'aspect-4/3',
@@ -94,6 +94,10 @@ export const CategoryGrid: React.FC = () => {
               <img
                 src={item.image}
                 alt={item.title}
+                width="600"
+                height="400"
+                decoding="async"
+                loading="lazy"
                 className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-700"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
