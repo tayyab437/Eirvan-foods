@@ -29,9 +29,10 @@ final class WholesaleController
         }
 
         $id = 'whl-' . gmdate('YmdHis') . '-' . bin2hex(random_bytes(3));
+        $nowUtc = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d\TH:i:s.u\Z');
         $doc = [
             'id' => $id,
-            'createdAt' => gmdate('c'),
+            'createdAt' => $nowUtc,
             'companyName' => RequestValidator::cleanString($input['companyName'], 100),
             'contactName' => RequestValidator::cleanString($input['contactName'], 100),
             'phone' => RequestValidator::cleanString($input['phone'], 30),
@@ -49,15 +50,30 @@ final class WholesaleController
         return ['status' => 201, 'body' => ['success' => true, 'id' => $id]];
     }
 
-    public function listAdmin(): array
+    public function listAdmin(array $query = []): array
     {
         $this->auth->requireAdmin();
-        $docs = $this->firestore->runQuery('wholesale_inquiries', [], 'createdAt', 'DESCENDING', 300);
+        $limit = max(1, min(300, (int) ($query['limit'] ?? 150)));
+        $pageToken = isset($query['pageToken']) ? trim((string) $query['pageToken']) : null;
+        if ($pageToken === '') {
+            $pageToken = null;
+        }
+
+        $page = $this->firestore->runQueryPaginated('wholesale_inquiries', [], 'createdAt', 'DESCENDING', $limit, $pageToken);
         $cleaned = array_map(static function (array $d): array {
             unset($d['_docId'], $d['_updateTime']);
             return $d;
-        }, $docs);
-        return ['status' => 200, 'body' => ['success' => true, 'inquiries' => $cleaned]];
+        }, $page['documents']);
+
+        return [
+            'status' => 200,
+            'body' => [
+                'success' => true,
+                'inquiries' => $cleaned,
+                'nextPageToken' => $page['nextPageToken'],
+                'hasMore' => $page['hasMore'],
+            ],
+        ];
     }
 
     public function updateStatusAdmin(string $id, array $input): array

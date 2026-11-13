@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { apiRequest } from '../services/apiClient';
 import { Order, OrderStatus } from '../types';
+import { isValidPakistaniPhone, normalizePakistaniPhone } from '../utils/phone';
 import {
   Package,
   Search,
@@ -97,11 +98,11 @@ export const OrderTrackingView: React.FC = () => {
     setSearchError(null);
 
     const ref = orderRefInput.trim().toUpperCase();
-    const phone = phoneInput.replace(/[^0-9]/g, '');
+    const phone = normalizePakistaniPhone(phoneInput);
 
-    if (!ref || phone.length < 10) {
+    if (!ref || !isValidPakistaniPhone(phone)) {
       setSearchError(
-        'Please enter both your Order Reference (e.g. ZDS-2026-...) and your registered 03XX mobile number.'
+        'Please enter both your Order Reference (e.g. ZDS-2026-...) and your registered Pakistani mobile number (03XX-XXXXXXX or +923XX...).'
       );
       return;
     }

@@ -23,7 +23,8 @@ final class TrackingController
         $this->rateLimit->enforce('order_tracking', 10, 900);
 
         $orderNumber = strtoupper(RequestValidator::cleanString($input['orderNumber'] ?? '', 32));
-        $phone = RequestValidator::normalizePhone((string) ($input['phone'] ?? ''));
+        $rawPhone = RequestValidator::cleanString($input['phone'] ?? '', 30);
+        $phone = $rawPhone !== '' ? RequestValidator::normalizePhone($rawPhone) : '';
         $token = RequestValidator::cleanString($input['trackingToken'] ?? '', 128);
 
         if ($orderNumber === '' || ($phone === '' && $token === '')) {
@@ -32,6 +33,16 @@ final class TrackingController
                 'body' => [
                     'success' => false,
                     'error' => 'Please enter both your Order Reference and registered Mobile Number.',
+                ],
+            ];
+        }
+
+        if ($token === '' && !RequestValidator::isValidPakistaniMobile($phone)) {
+            return [
+                'status' => 422,
+                'body' => [
+                    'success' => false,
+                    'error' => 'Please enter a valid Pakistani mobile number (e.g. 0300-1234567 or +92 300 1234567).',
                 ],
             ];
         }
@@ -52,7 +63,10 @@ final class TrackingController
             && !empty($order['trackingTokenHash'])
             && hash_equals((string) $order['trackingTokenHash'], hash('sha256', $token));
 
-        $storedPhone = RequestValidator::normalizePhone((string) ($order['customerPhone'] ?? ''));
+        $storedNormalized = (string) ($order['normalizedPhone'] ?? '');
+        $storedPhone = $storedNormalized !== ''
+            ? RequestValidator::normalizePhone($storedNormalized)
+            : RequestValidator::normalizePhone((string) ($order['customerPhone'] ?? ''));
         $hasValidPhone = $phone !== '' && $storedPhone !== '' && hash_equals($storedPhone, $phone);
 
         if (!$hasValidToken && !$hasValidPhone) {

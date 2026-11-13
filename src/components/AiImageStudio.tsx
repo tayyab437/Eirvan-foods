@@ -146,7 +146,7 @@ export const AiImageStudio: React.FC = () => {
                   <Layers className="w-3.5 h-3.5 text-[#C6842D]" />
                   <span>Resolution Affordance (High Quality Output):</span>
                 </label>
-                <span className="text-[10px] font-mono text-[#15222E]/50">Gemini Nano Banana 2.1</span>
+                <span className="text-[10px] font-mono text-[#15222E]/50">Gemini 2.5 Flash Image</span>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -310,22 +310,22 @@ export const AiImageStudio: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2 text-left">
                   <div
-                    onClick={() => setGeneratedImage('/assets/images/luxury_olive_gift_box_1794054054136.jpg')}
+                    onClick={() => setGeneratedImage('/assets/images/luxury_olive_gift_box_1794054054136.webp')}
                     className="p-2 bg-white rounded-xl border border-[#0A3D62]/15 hover:border-[#0A3D62] cursor-pointer transition-colors group"
                   >
                     <div className="aspect-4/3 rounded-lg overflow-hidden mb-1.5 bg-gray-100">
-                      <img src="/assets/images/luxury_olive_gift_box_1794054054136.jpg" alt="Artisan Olive Gift Chest" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <img src="/assets/images/luxury_olive_gift_box_1794054054136.webp" alt="Artisan Olive Gift Chest" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     </div>
                     <span className="text-[11px] font-bold text-[#0A3D62] block truncate">Olive Keepsake Chest</span>
                     <span className="text-[10px] text-[#4E9B36] font-mono">4K Studio Capture</span>
                   </div>
 
                   <div
-                    onClick={() => setGeneratedImage('/assets/images/hero_mediterranean_pantry_1794054052086.jpg')}
+                    onClick={() => setGeneratedImage('/assets/images/hero_mediterranean_pantry_1794054052086.webp')}
                     className="p-2 bg-white rounded-xl border border-[#0A3D62]/15 hover:border-[#0A3D62] cursor-pointer transition-colors group"
                   >
                     <div className="aspect-4/3 rounded-lg overflow-hidden mb-1.5 bg-gray-100">
-                      <img src="/assets/images/hero_mediterranean_pantry_1794054052086.jpg" alt="Mediterranean Pantry Table" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <img src="/assets/images/hero_mediterranean_pantry_1794054052086.webp" alt="Mediterranean Pantry Table" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     </div>
                     <span className="text-[11px] font-bold text-[#0A3D62] block truncate">Mediterranean Table</span>
                     <span className="text-[10px] text-[#4E9B36] font-mono">4K Studio Capture</span>

@@ -19,6 +19,17 @@ final class OrderController
         'Pending', 'Confirmed', 'Processing', 'Packed', 'Shipped', 'Delivered', 'Cancelled', 'Returned',
     ];
 
+    private const ALLOWED_TRANSITIONS = [
+        'Pending' => ['Confirmed', 'Processing', 'Packed', 'Shipped', 'Cancelled'],
+        'Confirmed' => ['Processing', 'Packed', 'Shipped', 'Cancelled'],
+        'Processing' => ['Packed', 'Shipped', 'Cancelled'],
+        'Packed' => ['Shipped', 'Cancelled'],
+        'Shipped' => ['Delivered', 'Returned', 'Cancelled'],
+        'Delivered' => ['Returned'],
+        'Cancelled' => [],
+        'Returned' => [],
+    ];
+
     public function __construct(
         private FirestoreService $firestore,
         private AuthMiddleware $auth,
@@ -89,8 +100,12 @@ final class OrderController
                 $verifiedItems = [];
                 $subtotal = 0;
 
-                // Cache product documents read inside transaction so multi-variant items from same product share update state
+                // Caches read inside transaction so multi-line items share atomic stock state
                 $productCache = [];
+                $boxCache = [];
+                $ingredientCache = [];
+                $customBoxUsage = [];
+                $customIngredientUsage = [];
 
                 foreach ((array) $input['items'] as $rawItem) {
                     if (!is_array($rawItem)) {
@@ -105,7 +120,16 @@ final class OrderController
                     $customBuild = $rawItem['customBuild'] ?? null;
 
                     if (is_array($customBuild) && !empty($customBuild['kind'])) {
-                        $computed = $this->verifyCustomBuildItem($rawItem, $customBuild, $qty, $tx);
+                        $computed = $this->verifyCustomBuildItem(
+                            $rawItem,
+                            $customBuild,
+                            $qty,
+                            $tx,
+                            $boxCache,
+                            $ingredientCache,
+                            $customBoxUsage,
+                            $customIngredientUsage
+                        );
                         $verifiedItems[] = $computed['orderItem'];
                         $subtotal += $computed['lineSubtotal'];
                         continue;
@@ -202,7 +226,39 @@ final class OrderController
                     }
                 }
 
-                // 2. Validate & apply optional coupon atomically
+                // Queue optimistic Shahi Box stock updates
+                foreach ($boxCache as $bid => $boxDoc) {
+                    if (!empty($boxDoc['_dirty'])) {
+                        $writes[] = $this->firestore->buildUpdateWithPrecondition(
+                            'shahi_boxes',
+                            (string) $bid,
+                            [
+                                'stock' => (int) ($boxDoc['stock'] ?? 0),
+                                'inStock' => (bool) ($boxDoc['inStock'] ?? false),
+                            ],
+                            (string) ($boxDoc['_updateTime'] ?? ''),
+                            ['stock', 'inStock']
+                        );
+                    }
+                }
+
+                // Queue optimistic Shahi Ingredient stockGrams updates
+                foreach ($ingredientCache as $iid => $ingDoc) {
+                    if (!empty($ingDoc['_dirty'])) {
+                        $writes[] = $this->firestore->buildUpdateWithPrecondition(
+                            'shahi_ingredients',
+                            (string) $iid,
+                            [
+                                'stockGrams' => (int) ($ingDoc['stockGrams'] ?? 0),
+                                'inStock' => (bool) ($ingDoc['inStock'] ?? false),
+                            ],
+                            (string) ($ingDoc['_updateTime'] ?? ''),
+                            ['stockGrams', 'inStock']
+                        );
+                    }
+                }
+
+                // 2. Validate & apply optional coupon atomically with usageLimit + precondition
                 $discountAmount = 0;
                 $appliedCouponCode = null;
 
@@ -217,6 +273,12 @@ final class OrderController
                     if (!empty($coupon['expiryDate']) && $this->isCouponExpired((string) $coupon['expiryDate'])) {
                         throw new RuntimeException('VALIDATION:This coupon code has expired.');
                     }
+                    $usageLimit = isset($coupon['usageLimit']) ? (int) $coupon['usageLimit'] : 0;
+                    $usageCount = max(0, (int) ($coupon['usageCount'] ?? 0));
+                    if ($usageLimit > 0 && $usageCount >= $usageLimit) {
+                        throw new RuntimeException('VALIDATION:This coupon code has reached its redemption limit.');
+                    }
+
                     $minAmount = (float) ($coupon['minOrderAmount'] ?? 0);
                     if ($subtotal < $minAmount) {
                         throw new RuntimeException(sprintf(
@@ -228,13 +290,25 @@ final class OrderController
 
                     $discountVal = (float) ($coupon['discountValue'] ?? 0);
                     if (($coupon['discountType'] ?? '') === 'percentage') {
-                        $discountAmount = (int) round(($subtotal * $discountVal) / 100);
+                        $pct = max(0.0, min(100.0, $discountVal));
+                        $discountAmount = (int) min($subtotal, round(($subtotal * $pct) / 100));
                     } else {
-                        $discountAmount = (int) min($subtotal, round($discountVal));
+                        $discountAmount = (int) max(0, min($subtotal, round($discountVal)));
                     }
                     $appliedCouponCode = (string) ($coupon['code'] ?? $couponCode);
 
-                    $writes[] = $this->firestore->buildIncrementWrite('coupons', $couponCode, 'usageCount', 1);
+                    $couponUpdateTime = (string) ($coupon['_updateTime'] ?? '');
+                    if ($couponUpdateTime !== '') {
+                        $writes[] = $this->firestore->buildUpdateWithPrecondition(
+                            'coupons',
+                            $couponCode,
+                            ['usageCount' => $usageCount + 1],
+                            $couponUpdateTime,
+                            ['usageCount']
+                        );
+                    } else {
+                        $writes[] = $this->firestore->buildIncrementWrite('coupons', $couponCode, 'usageCount', 1, true);
+                    }
                 }
 
                 // 3. Calculate shipping & total on server
@@ -249,7 +323,7 @@ final class OrderController
                 $trackingToken = bin2hex(random_bytes(16));
                 $trackingTokenHash = hash('sha256', $trackingToken);
                 $trackingNumber = 'PK-' . random_int(100000000, 999999999);
-                $createdAt = gmdate('c');
+                $createdAt = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d\TH:i:s.u\Z');
 
                 $internalNotes = [];
                 if ($bankRef !== '') {
@@ -283,6 +357,10 @@ final class OrderController
                     'trackingTokenHash' => $trackingTokenHash,
                     'idempotencyKey' => $idempotencyKey,
                     'stockRestored' => false,
+                    'customStockUsage' => [
+                        'boxes' => empty($customBoxUsage) ? new \stdClass() : $customBoxUsage,
+                        'ingredients' => empty($customIngredientUsage) ? new \stdClass() : $customIngredientUsage,
+                    ],
                     'internalNotes' => $internalNotes,
                 ];
 
@@ -330,6 +408,9 @@ final class OrderController
             if (str_starts_with($msg, 'STOCK:')) {
                 return ['status' => 409, 'body' => ['success' => false, 'error' => substr($msg, 6)]];
             }
+            if ($msg === 'TRANSACTION_CONFLICT') {
+                return ['status' => 409, 'body' => ['success' => false, 'error' => 'Inventory changed while placing your order. Please try again.']];
+            }
             $this->logger->error('order_create_failed', ['error' => $msg]);
             return [
                 'status' => 500,
@@ -344,18 +425,27 @@ final class OrderController
 
         $limit = max(1, min(300, (int) ($query['limit'] ?? 150)));
         $statusFilter = RequestValidator::cleanString($query['status'] ?? '', 30);
+        $pageToken = isset($query['pageToken']) ? trim((string) $query['pageToken']) : null;
+        if ($pageToken === '') {
+            $pageToken = null;
+        }
 
         $where = [];
         if ($statusFilter !== '' && in_array($statusFilter, self::ALLOWED_STATUSES, true)) {
             $where['orderStatus'] = $statusFilter;
         }
 
-        $orders = $this->firestore->runQuery('orders', $where, 'createdAt', 'DESCENDING', $limit);
-        $cleaned = array_map(fn(array $o): array => $this->sanitizeOrderForAdmin($o), $orders);
+        $res = $this->firestore->runQueryPaginated('orders', $where, 'createdAt', 'DESCENDING', $limit, $pageToken);
+        $cleaned = array_map(fn(array $o): array => $this->sanitizeOrderForAdmin($o), $res['documents']);
 
         return [
             'status' => 200,
-            'body' => ['success' => true, 'orders' => $cleaned],
+            'body' => [
+                'success' => true,
+                'orders' => $cleaned,
+                'nextPageToken' => $res['nextPageToken'] ?? null,
+                'hasMore' => (bool) ($res['hasMore'] ?? false),
+            ],
         ];
     }
 
@@ -391,6 +481,20 @@ final class OrderController
                     throw new RuntimeException('NOT_FOUND:Order not found.');
                 }
 
+                $currentStatus = (string) ($order['orderStatus'] ?? 'Pending');
+                $stockRestored = (bool) ($order['stockRestored'] ?? false);
+
+                if ($currentStatus !== $newStatus) {
+                    $allowedNext = self::ALLOWED_TRANSITIONS[$currentStatus] ?? [];
+                    if (!in_array($newStatus, $allowedNext, true)) {
+                        throw new RuntimeException("CONFLICT:Transition from {$currentStatus} to {$newStatus} is not allowed.");
+                    }
+                }
+
+                if ($stockRestored && !in_array($newStatus, ['Cancelled', 'Returned'], true)) {
+                    throw new RuntimeException('CONFLICT:Order stock has already been restored and cannot be moved back to an active status.');
+                }
+
                 $notes = is_array($order['internalNotes'] ?? null) ? $order['internalNotes'] : [];
                 if ($adminNote !== '') {
                     $notes[] = '[' . gmdate('Y-m-d') . '] ' . $adminNote;
@@ -404,9 +508,8 @@ final class OrderController
                 }
 
                 $writes = [];
-                $stockRestored = (bool) ($order['stockRestored'] ?? false);
 
-                // Restore catalog variant stock once upon transition to Cancelled or Returned
+                // Restore catalog variant stock & tracked custom box/ingredient inventory once upon transition to Cancelled or Returned
                 if (in_array($newStatus, ['Cancelled', 'Returned'], true) && !$stockRestored) {
                     $productCache = [];
                     foreach ((array) ($order['items'] ?? []) as $item) {
@@ -452,6 +555,50 @@ final class OrderController
                             );
                         }
                     }
+
+                    $customUsage = is_array($order['customStockUsage'] ?? null) ? $order['customStockUsage'] : [];
+                    foreach ((array) ($customUsage['boxes'] ?? []) as $boxId => $usedQty) {
+                        $usedQtyInt = (int) $usedQty;
+                        if ($usedQtyInt <= 0 || !RequestValidator::isValidDocId((string) $boxId)) {
+                            continue;
+                        }
+                        $boxDoc = $this->firestore->getDocument('shahi_boxes', (string) $boxId, $tx);
+                        if (is_array($boxDoc)) {
+                            $newStock = max(0, (int) ($boxDoc['stock'] ?? 0)) + $usedQtyInt;
+                            $writes[] = $this->firestore->buildUpdateWithPrecondition(
+                                'shahi_boxes',
+                                (string) $boxId,
+                                [
+                                    'stock' => $newStock,
+                                    'inStock' => $newStock > 0,
+                                ],
+                                (string) ($boxDoc['_updateTime'] ?? ''),
+                                ['stock', 'inStock']
+                            );
+                        }
+                    }
+
+                    foreach ((array) ($customUsage['ingredients'] ?? []) as $ingId => $usedGrams) {
+                        $usedGramsInt = (int) $usedGrams;
+                        if ($usedGramsInt <= 0 || !RequestValidator::isValidDocId((string) $ingId)) {
+                            continue;
+                        }
+                        $ingDoc = $this->firestore->getDocument('shahi_ingredients', (string) $ingId, $tx);
+                        if (is_array($ingDoc)) {
+                            $newGrams = max(0, (int) ($ingDoc['stockGrams'] ?? 0)) + $usedGramsInt;
+                            $writes[] = $this->firestore->buildUpdateWithPrecondition(
+                                'shahi_ingredients',
+                                (string) $ingId,
+                                [
+                                    'stockGrams' => $newGrams,
+                                    'inStock' => $newGrams > 0,
+                                ],
+                                (string) ($ingDoc['_updateTime'] ?? ''),
+                                ['stockGrams', 'inStock']
+                            );
+                        }
+                    }
+
                     $stockRestored = true;
                 }
 
@@ -496,16 +643,31 @@ final class OrderController
                 ],
             ];
         } catch (RuntimeException $e) {
-            if (str_starts_with($e->getMessage(), 'NOT_FOUND:')) {
+            $msg = $e->getMessage();
+            if (str_starts_with($msg, 'NOT_FOUND:')) {
                 return ['status' => 404, 'body' => ['success' => false, 'error' => 'Order not found.']];
             }
-            $this->logger->error('order_status_update_failed', ['orderId' => $orderId, 'error' => $e->getMessage()]);
+            if (str_starts_with($msg, 'CONFLICT:')) {
+                return ['status' => 409, 'body' => ['success' => false, 'error' => substr($msg, 9)]];
+            }
+            if ($msg === 'TRANSACTION_CONFLICT') {
+                return ['status' => 409, 'body' => ['success' => false, 'error' => 'Concurrent update detected. Please refresh and try again.']];
+            }
+            $this->logger->error('order_status_update_failed', ['orderId' => $orderId, 'error' => $msg]);
             return ['status' => 500, 'body' => ['success' => false, 'error' => 'Failed to update order status.']];
         }
     }
 
-    private function verifyCustomBuildItem(array $rawItem, array $customBuild, int $qty, string $tx): array
-    {
+    private function verifyCustomBuildItem(
+        array $rawItem,
+        array $customBuild,
+        int $qty,
+        string $tx,
+        array &$boxCache,
+        array &$ingredientCache,
+        array &$customBoxUsage,
+        array &$customIngredientUsage
+    ): array {
         $kind = (string) ($customBuild['kind'] ?? '');
         $items = (array) ($customBuild['items'] ?? []);
 
@@ -515,10 +677,36 @@ final class OrderController
 
         if ($kind === 'shahi-box') {
             $boxId = RequestValidator::cleanString($customBuild['boxId'] ?? '', 128);
-            $boxDoc = $this->firestore->getDocument('shahi_boxes', $boxId, $tx);
-            if (!is_array($boxDoc)) {
-                throw new RuntimeException('VALIDATION:Selected Shahi gift box packaging is unavailable.');
+            if (!RequestValidator::isValidDocId($boxId)) {
+                throw new RuntimeException('VALIDATION:Invalid Shahi gift box selection.');
             }
+            if (!isset($boxCache[$boxId])) {
+                $loadedBox = $this->firestore->getDocument('shahi_boxes', $boxId, $tx);
+                if (!is_array($loadedBox)) {
+                    throw new RuntimeException('VALIDATION:Selected Shahi gift box packaging is unavailable.');
+                }
+                $boxCache[$boxId] = $loadedBox;
+            }
+            $boxDoc = &$boxCache[$boxId];
+            if (isset($boxDoc['inStock']) && $boxDoc['inStock'] === false) {
+                throw new RuntimeException('STOCK:Selected Shahi gift box (' . ($boxDoc['name'] ?? $boxId) . ') is currently out of stock.');
+            }
+
+            if ($this->resolveInventoryPolicy($boxDoc, 'stock') === 'tracked') {
+                $currentBoxStock = (int) ($boxDoc['stock'] ?? 0);
+                if ($currentBoxStock < $qty) {
+                    throw new RuntimeException(sprintf(
+                        'STOCK:Insufficient stock for %s. Available: %d.',
+                        (string) ($boxDoc['name'] ?? 'Shahi Box'),
+                        $currentBoxStock
+                    ));
+                }
+                $boxDoc['stock'] = $currentBoxStock - $qty;
+                $boxDoc['inStock'] = $boxDoc['stock'] > 0;
+                $boxDoc['_dirty'] = true;
+                $customBoxUsage[$boxId] = ($customBoxUsage[$boxId] ?? 0) + $qty;
+            }
+
             $capacity = (int) ($boxDoc['capacity'] ?? 4);
             if (count($items) < 2 || count($items) > $capacity) {
                 throw new RuntimeException("VALIDATION:Shahi Mix Box requires between 2 and {$capacity} fillings.");
@@ -531,9 +719,19 @@ final class OrderController
             foreach ($items as $entry) {
                 $ingId = RequestValidator::cleanString($entry['ingredientId'] ?? '', 128);
                 $portionId = RequestValidator::cleanString($entry['portionId'] ?? '', 128);
-                $ing = $this->firestore->getDocument('shahi_ingredients', $ingId, $tx);
-                if (!is_array($ing) || empty($ing['inStock'])) {
-                    throw new RuntimeException('VALIDATION:Selected ingredient is currently out of stock.');
+                if (!RequestValidator::isValidDocId($ingId)) {
+                    throw new RuntimeException('VALIDATION:Invalid ingredient selection.');
+                }
+                if (!isset($ingredientCache[$ingId])) {
+                    $loadedIng = $this->firestore->getDocument('shahi_ingredients', $ingId, $tx);
+                    if (!is_array($loadedIng)) {
+                        throw new RuntimeException('VALIDATION:Selected ingredient is currently unavailable.');
+                    }
+                    $ingredientCache[$ingId] = $loadedIng;
+                }
+                $ing = &$ingredientCache[$ingId];
+                if (empty($ing['inStock'])) {
+                    throw new RuntimeException('STOCK:Selected ingredient (' . ($ing['name'] ?? $ingId) . ') is currently out of stock.');
                 }
 
                 $matchedPortion = null;
@@ -547,8 +745,25 @@ final class OrderController
                     throw new RuntimeException('VALIDATION:Selected portion weight is invalid for ' . ($ing['name'] ?? 'ingredient') . '.');
                 }
 
+                $portionGrams = max(1, (int) ($matchedPortion['weightGrams'] ?? $this->inferGramsFromWeight((string) ($matchedPortion['weight'] ?? ''))));
+                if ($this->resolveInventoryPolicy($ing, 'stockGrams') === 'tracked') {
+                    $neededGrams = $portionGrams * $qty;
+                    $currentGrams = (int) ($ing['stockGrams'] ?? 0);
+                    if ($currentGrams < $neededGrams) {
+                        throw new RuntimeException(sprintf(
+                            'STOCK:Insufficient stock for %s. Available: %dg.',
+                            (string) ($ing['name'] ?? 'ingredient'),
+                            $currentGrams
+                        ));
+                    }
+                    $ing['stockGrams'] = $currentGrams - $neededGrams;
+                    $ing['inStock'] = $ing['stockGrams'] > 0;
+                    $ing['_dirty'] = true;
+                    $customIngredientUsage[$ingId] = ($customIngredientUsage[$ingId] ?? 0) + $neededGrams;
+                }
+
                 $fillingsTotal += (int) round((float) $matchedPortion['price']);
-                $totalGrams += (int) ($matchedPortion['weightGrams'] ?? 0);
+                $totalGrams += $portionGrams;
                 $descParts[] = ($ing['name'] ?? 'Item') . ' (' . ($matchedPortion['weight'] ?? '') . ')';
             }
 
@@ -582,16 +797,42 @@ final class OrderController
                 $ingId = RequestValidator::cleanString($entry['ingredientId'] ?? '', 128);
                 $weightLabel = RequestValidator::cleanString($entry['weightLabel'] ?? '', 20);
                 $multiplier = max(1, min(50, (int) ($entry['multiplier'] ?? 1)));
+                if (!RequestValidator::isValidDocId($ingId)) {
+                    throw new RuntimeException('VALIDATION:Invalid mix ingredient selection.');
+                }
 
-                $ing = $this->firestore->getDocument('shahi_ingredients', $ingId, $tx);
-                if (!is_array($ing) || empty($ing['inStock'])) {
-                    throw new RuntimeException('VALIDATION:One or more selected mix ingredients are unavailable.');
+                if (!isset($ingredientCache[$ingId])) {
+                    $loadedIng = $this->firestore->getDocument('shahi_ingredients', $ingId, $tx);
+                    if (!is_array($loadedIng)) {
+                        throw new RuntimeException('VALIDATION:One or more selected mix ingredients are unavailable.');
+                    }
+                    $ingredientCache[$ingId] = $loadedIng;
+                }
+                $ing = &$ingredientCache[$ingId];
+                if (empty($ing['inStock'])) {
+                    throw new RuntimeException('STOCK:Selected ingredient (' . ($ing['name'] ?? $ingId) . ') is currently out of stock.');
                 }
                 if ($firstImage === '' && !empty($ing['image'])) {
                     $firstImage = (string) $ing['image'];
                 }
 
                 [$portionPrice, $gramsPerUnit] = $this->computeIngredientWeightPrice($ing, $weightLabel);
+                if ($this->resolveInventoryPolicy($ing, 'stockGrams') === 'tracked') {
+                    $neededGrams = $gramsPerUnit * $multiplier * $qty;
+                    $currentGrams = (int) ($ing['stockGrams'] ?? 0);
+                    if ($currentGrams < $neededGrams) {
+                        throw new RuntimeException(sprintf(
+                            'STOCK:Insufficient stock for %s. Available: %dg.',
+                            (string) ($ing['name'] ?? 'ingredient'),
+                            $currentGrams
+                        ));
+                    }
+                    $ing['stockGrams'] = $currentGrams - $neededGrams;
+                    $ing['inStock'] = $ing['stockGrams'] > 0;
+                    $ing['_dirty'] = true;
+                    $customIngredientUsage[$ingId] = ($customIngredientUsage[$ingId] ?? 0) + $neededGrams;
+                }
+
                 $mixPrice += $portionPrice * $multiplier;
                 $totalGrams += $gramsPerUnit * $multiplier;
                 $descParts[] = ($ing['name'] ?? 'Item') . ' (' . ($gramsPerUnit * $multiplier) . 'g)';
@@ -615,6 +856,27 @@ final class OrderController
         }
 
         throw new RuntimeException('VALIDATION:Unsupported custom build item type.');
+    }
+
+    private function resolveInventoryPolicy(array $doc, string $stockKey): string
+    {
+        if (isset($doc['inventoryPolicy']) && in_array($doc['inventoryPolicy'], ['tracked', 'unlimited'], true)) {
+            return (string) $doc['inventoryPolicy'];
+        }
+        return array_key_exists($stockKey, $doc) ? 'tracked' : 'unlimited';
+    }
+
+    private function inferGramsFromWeight(string $label): int
+    {
+        return match (strtolower(trim($label))) {
+            '10g' => 10,
+            '50g' => 50,
+            '100g' => 100,
+            '250g' => 250,
+            '500g' => 500,
+            '1kg' => 1000,
+            default => 100,
+        };
     }
 
     private function computeIngredientWeightPrice(array $ing, string $weightLabel): array
@@ -674,9 +936,19 @@ final class OrderController
 
     private function isCouponExpired(string $expiryDate): bool
     {
-        $ts = strtotime($expiryDate . ' 23:59:59');
-        if ($ts === false) {
+        $trimmed = trim($expiryDate);
+        if ($trimmed === '') {
             return false;
+        }
+        $tz = new \DateTimeZone('Asia/Karachi');
+        $dt = \DateTimeImmutable::createFromFormat('!Y-m-d', $trimmed, $tz);
+        if ($dt !== false && $dt->format('Y-m-d') === $trimmed) {
+            $endOfDay = $dt->setTime(23, 59, 59);
+            return time() > $endOfDay->getTimestamp();
+        }
+        $ts = strtotime($trimmed);
+        if ($ts === false) {
+            return true;
         }
         return time() > $ts;
     }

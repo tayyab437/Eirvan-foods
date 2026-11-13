@@ -4,10 +4,8 @@ import { useStore } from '../context/StoreContext';
 import { Product, Order, OrderStatus, ProductVariant, Coupon, StoreSettings } from '../types';
 import { buildSafeCsv } from '../utils/csvExport';
 import {
-  IONOS_MYSQL_SCHEMA,
-  IONOS_SEED_DATA,
-  IONOS_HTACCESS,
-  IONOS_PHP_DATABASE_CONFIG,
+  IONOS_PHP_SECRETS_TEMPLATE,
+  IONOS_DEPLOYMENT_CHECKLIST,
 } from '../services/ionosExport';
 import {
   BarChart3,
@@ -78,6 +76,15 @@ export const AdminDashboard: React.FC = () => {
     moderateReview,
     deleteReview,
     backfillCatalogToFirestore,
+    ordersPagination,
+    couponsPagination,
+    reviewsPagination,
+    wholesalePagination,
+    loadMoreOrders,
+    loadMoreCoupons,
+    loadMoreReviews,
+    loadMoreWholesale,
+    refreshAdminData,
     currentUser,
     isAuthReady,
     isAdminUser,
@@ -95,6 +102,8 @@ export const AdminDashboard: React.FC = () => {
 
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
   const [productSort, setProductSort] = useState<'default' | 'views-desc' | 'views-asc' | 'stock-low'>('default');
 
@@ -115,6 +124,8 @@ export const AdminDashboard: React.FC = () => {
     name: '',
     image: '',
     inStock: true,
+    inventoryPolicy: 'tracked' as 'tracked' | 'unlimited',
+    stockGrams: 5000,
     price10g: 90,
     price50g: 450,
     price100g: 800,
@@ -131,6 +142,9 @@ export const AdminDashboard: React.FC = () => {
     basePrice: 1950,
     image: '',
     description: '',
+    inStock: true,
+    inventoryPolicy: 'tracked' as 'tracked' | 'unlimited',
+    stock: 25,
   });
   const [shahiMixFeedback, setShahiMixFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -148,10 +162,13 @@ export const AdminDashboard: React.FC = () => {
     isActive: true,
     expiryDate: '2026-12-31',
     usageCount: 0,
+    usageLimit: undefined,
   });
 
-  // Copy notification state
+  // Copy notification & IONOS health check state
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const [healthResult, setHealthResult] = useState<{ ok: boolean; status: number; body: string } | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
 
   // Order quick inspector / receipt modal
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
@@ -312,7 +329,15 @@ export const AdminDashboard: React.FC = () => {
     e.preventDefault();
     if (!couponForm.code.trim()) return;
 
-    await addCoupon(couponForm);
+    const payload: Coupon = {
+      ...couponForm,
+      usageLimit:
+        typeof couponForm.usageLimit === 'number' && couponForm.usageLimit > 0
+          ? couponForm.usageLimit
+          : undefined,
+    };
+
+    await addCoupon(payload);
     setIsCouponModalOpen(false);
     setCouponForm({
       code: '',
@@ -322,6 +347,7 @@ export const AdminDashboard: React.FC = () => {
       isActive: true,
       expiryDate: '2026-12-31',
       usageCount: 0,
+      usageLimit: undefined,
     });
   };
 
@@ -807,7 +833,7 @@ export const AdminDashboard: React.FC = () => {
             >
               <div className="flex items-center space-x-2.5">
                 <Server className="w-4 h-4 text-[#C99A45]" />
-                <span>IONOS PHP & MySQL</span>
+                <span>IONOS PHP + Firestore</span>
               </div>
               <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
                 PRO
@@ -1509,6 +1535,8 @@ export const AdminDashboard: React.FC = () => {
                       name: '',
                       image: '',
                       inStock: true,
+                      inventoryPolicy: 'tracked',
+                      stockGrams: 5000,
                       price10g: 90,
                       price50g: 450,
                       price100g: 800,
@@ -1527,12 +1555,12 @@ export const AdminDashboard: React.FC = () => {
 
               <div className="bg-white rounded-3xl border border-[#E8DDCA] overflow-hidden shadow-xs">
                 <div className="overflow-x-auto w-full">
-                  <table className="w-full text-xs min-w-[700px]">
+                  <table className="w-full text-xs min-w-[780px]">
                     <thead>
                       <tr className="bg-[#F8F5ED] border-b border-[#E8DDCA] text-left text-gray-500 uppercase text-[10px]">
                         <th className="p-3">Ingredient</th>
                         <th className="p-3">Portion Prices (100g / 250g / 500g / 1kg)</th>
-                        <th className="p-3">Status</th>
+                        <th className="p-3">Inventory &amp; Policy</th>
                         <th className="p-3 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -1544,6 +1572,8 @@ export const AdminDashboard: React.FC = () => {
                         const p250 = ing.portions.find((p) => p.weight === '250g')?.price || 0;
                         const p500 = ing.portions.find((p) => p.weight === '500g')?.price || 0;
                         const p1k = ing.portions.find((p) => p.weight === '1kg')?.price || 0;
+                        const policy = ing.inventoryPolicy === 'unlimited' ? 'unlimited' : 'tracked';
+                        const stockGrams = typeof ing.stockGrams === 'number' ? ing.stockGrams : 0;
 
                         return (
                           <tr key={ing.id} className="hover:bg-gray-50/50">
@@ -1586,28 +1616,82 @@ export const AdminDashboard: React.FC = () => {
                                 </span>
                               </div>
                             </td>
-                            <td className="p-3">
+                            <td className="p-3 space-y-1">
                               <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                   ing.inStock ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
                                 }`}
                               >
                                 {ing.inStock ? 'In Stock' : 'Out of Stock'}
                               </span>
+                              <div className="text-[10px] font-mono text-gray-500">
+                                {policy === 'unlimited' ? 'Policy: Unlimited' : `Tracked: ${stockGrams.toLocaleString()}g`}
+                              </div>
                             </td>
                             <td className="p-3 text-right">
-                              <button
-                                onClick={async () => {
-                                  if (confirm(`Remove ingredient "${ing.name}" from Shahi Mix builder?`)) {
-                                    await deleteShahiMixIngredient(ing.id);
-                                    setShahiMixFeedback({ type: 'success', text: `Removed ${ing.name}` });
-                                  }
-                                }}
-                                className="p-1.5 rounded-lg border border-[#E8DDCA] hover:bg-red-50 text-red-600 cursor-pointer"
-                                title="Delete Ingredient"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="inline-flex items-center space-x-1.5">
+                                {policy === 'tracked' && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        await updateShahiMixIngredient({
+                                          ...ing,
+                                          inventoryPolicy: 'tracked',
+                                          stockGrams: stockGrams + 1000,
+                                          inStock: true,
+                                        });
+                                        setShahiMixFeedback({
+                                          type: 'success',
+                                          text: `Added +1,000g stock to ${ing.name}`,
+                                        });
+                                      } catch (err: unknown) {
+                                        setShahiMixFeedback({
+                                          type: 'error',
+                                          text: err instanceof Error ? err.message : 'Failed to restock ingredient.',
+                                        });
+                                      }
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-[#244C37] text-white text-[10px] font-bold hover:bg-[#1A3828] cursor-pointer"
+                                  >
+                                    +1kg
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      await updateShahiMixIngredient({
+                                        ...ing,
+                                        inventoryPolicy: policy,
+                                        ...(policy === 'tracked' ? { stockGrams } : {}),
+                                        inStock: !ing.inStock,
+                                      });
+                                    } catch (err: unknown) {
+                                      setShahiMixFeedback({
+                                        type: 'error',
+                                        text: err instanceof Error ? err.message : 'Failed to toggle availability.',
+                                      });
+                                    }
+                                  }}
+                                  className="px-2 py-1 rounded-lg border border-[#E8DDCA] hover:bg-[#F8F5ED] text-[10px] font-semibold text-gray-700 cursor-pointer"
+                                >
+                                  {ing.inStock ? 'Disable' : 'Enable'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (confirm(`Remove ingredient "${ing.name}" from Shahi Mix builder?`)) {
+                                      await deleteShahiMixIngredient(ing.id);
+                                      setShahiMixFeedback({ type: 'success', text: `Removed ${ing.name}` });
+                                    }
+                                  }}
+                                  className="p-1.5 rounded-lg border border-[#E8DDCA] hover:bg-red-50 text-red-600 cursor-pointer"
+                                  title="Delete Ingredient"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1635,6 +1719,9 @@ export const AdminDashboard: React.FC = () => {
                       basePrice: 1950,
                       image: '',
                       description: '',
+                      inStock: true,
+                      inventoryPolicy: 'tracked',
+                      stock: 25,
                     });
                     setIsBoxModalOpen(true);
                   }}
@@ -1646,53 +1733,92 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {shahiMixBoxes.map((box) => (
-                  <div
-                    key={box.id}
-                    className="bg-white rounded-3xl border border-[#E8DDCA] overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="aspect-16/9 w-full bg-[#F8F5ED] relative overflow-hidden">
-                        <img
-                          src={box.image}
-                          alt={box.name}
-                          className="w-full h-full object-cover"
-                        />
-                        <span className="absolute top-3 left-3 bg-[#244C37]/90 backdrop-blur-md text-[#B69A62] text-[10px] font-bold px-2.5 py-1 rounded-full">
-                          {box.capacity} Compartments Slot
-                        </span>
-                        <span className="absolute top-3 right-3 bg-[#B69A62] text-[#344B36] text-[11px] font-bold font-mono px-2.5 py-1 rounded-full">
-                          Base Price: Rs. {box.basePrice.toLocaleString()}
-                        </span>
-                      </div>
-
-                      <div className="p-5 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-serif text-base font-bold text-[#242821]">{box.name}</h4>
+                {shahiMixBoxes.map((box) => {
+                  const boxPolicy = box.inventoryPolicy === 'unlimited' ? 'unlimited' : 'tracked';
+                  const boxStock = typeof box.stock === 'number' ? box.stock : 0;
+                  const boxAvailable = box.inStock !== false && (boxPolicy === 'unlimited' || boxStock > 0);
+                  return (
+                    <div
+                      key={box.id}
+                      className="bg-white rounded-3xl border border-[#E8DDCA] overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="aspect-16/9 w-full bg-[#F8F5ED] relative overflow-hidden">
+                          <img
+                            src={box.image}
+                            alt={box.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <span className="absolute top-3 left-3 bg-[#244C37]/90 backdrop-blur-md text-[#B69A62] text-[10px] font-bold px-2.5 py-1 rounded-full">
+                            {box.capacity} Compartments Slot
+                          </span>
+                          <span className="absolute top-3 right-3 bg-[#B69A62] text-[#344B36] text-[11px] font-bold font-mono px-2.5 py-1 rounded-full">
+                            Base Price: Rs. {box.basePrice.toLocaleString()}
+                          </span>
                         </div>
-                        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
-                          {box.description || 'Handcrafted velvet or tin partition gift box.'}
-                        </p>
+
+                        <div className="p-5 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="font-serif text-base font-bold text-[#242821]">{box.name}</h4>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                boxAvailable ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                              }`}
+                            >
+                              {boxAvailable ? (boxPolicy === 'unlimited' ? 'Unlimited' : `${boxStock} left`) : 'Out of Stock'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                            {box.description || 'Handcrafted velvet or tin partition gift box.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="p-5 pt-3 border-t border-[#E8DDCA]/60 flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-gray-400 font-mono truncate">ID: {box.id}</span>
+                        <div className="flex items-center space-x-1.5 shrink-0">
+                          {boxPolicy === 'tracked' && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await updateShahiMixBox({
+                                    ...box,
+                                    inventoryPolicy: 'tracked',
+                                    stock: boxStock + 10,
+                                    inStock: true,
+                                  });
+                                  setShahiMixFeedback({ type: 'success', text: `Added +10 stock to ${box.name}` });
+                                } catch (err: unknown) {
+                                  setShahiMixFeedback({
+                                    type: 'error',
+                                    text: err instanceof Error ? err.message : 'Failed to restock box.',
+                                  });
+                                }
+                              }}
+                              className="px-2.5 py-1.5 rounded-xl bg-[#244C37] text-white text-[10px] font-bold hover:bg-[#1A3828] cursor-pointer"
+                            >
+                              +10
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (confirm(`Delete box option "${box.name}"?`)) {
+                                await deleteShahiMixBox(box.id);
+                                setShahiMixFeedback({ type: 'success', text: `Deleted box style ${box.name}` });
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold flex items-center space-x-1.5 cursor-pointer border border-rose-200"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-
-                    <div className="p-5 pt-3 border-t border-[#E8DDCA]/60 flex items-center justify-between">
-                      <span className="text-[10px] text-gray-400 font-mono">ID: {box.id}</span>
-                      <button
-                        onClick={async () => {
-                          if (confirm(`Delete box option "${box.name}"?`)) {
-                            await deleteShahiMixBox(box.id);
-                            setShahiMixFeedback({ type: 'success', text: `Deleted box style ${box.name}` });
-                          }
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold flex items-center space-x-1.5 cursor-pointer border border-rose-200"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Delete Box</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1732,6 +1858,10 @@ export const AdminDashboard: React.FC = () => {
                     ingredientForm.image.trim() ||
                     'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp',
                   inStock: ingredientForm.inStock,
+                  inventoryPolicy: ingredientForm.inventoryPolicy,
+                  ...(ingredientForm.inventoryPolicy === 'tracked'
+                    ? { stockGrams: Math.max(0, Number(ingredientForm.stockGrams) || 0) }
+                    : {}),
                   portions: [
                     { id: `p10-${Date.now()}`, weight: '10g', weightGrams: 10, price: ingredientForm.price10g },
                     { id: `p50-${Date.now()}`, weight: '50g', weightGrams: 50, price: ingredientForm.price50g },
@@ -1843,6 +1973,44 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Inventory Policy *</label>
+                  <select
+                    value={ingredientForm.inventoryPolicy}
+                    onChange={(e) =>
+                      setIngredientForm({
+                        ...ingredientForm,
+                        inventoryPolicy: e.target.value as 'tracked' | 'unlimited',
+                      })
+                    }
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-semibold"
+                  >
+                    <option value="tracked">Tracked (Gram Stock)</option>
+                    <option value="unlimited">Unlimited</option>
+                  </select>
+                </div>
+
+                {ingredientForm.inventoryPolicy === 'tracked' && (
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Available Stock (grams) *</label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={ingredientForm.stockGrams}
+                      onChange={(e) =>
+                        setIngredientForm({
+                          ...ingredientForm,
+                          stockGrams: Math.max(0, Number(e.target.value) || 0),
+                        })
+                      }
+                      className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-bold"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="pt-2">
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input
@@ -1911,6 +2079,11 @@ export const AdminDashboard: React.FC = () => {
                     boxForm.image.trim() ||
                     'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=600&q=70',
                   description: boxForm.description.trim() || 'Royal handcrafted presentation box.',
+                  inStock: boxForm.inStock,
+                  inventoryPolicy: boxForm.inventoryPolicy,
+                  ...(boxForm.inventoryPolicy === 'tracked'
+                    ? { stock: Math.max(0, Number(boxForm.stock) || 0) }
+                    : {}),
                 };
 
                 await addShahiMixBox(newBox);
@@ -1978,6 +2151,54 @@ export const AdminDashboard: React.FC = () => {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Inventory Policy *</label>
+                  <select
+                    value={boxForm.inventoryPolicy}
+                    onChange={(e) =>
+                      setBoxForm({
+                        ...boxForm,
+                        inventoryPolicy: e.target.value as 'tracked' | 'unlimited',
+                      })
+                    }
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-semibold"
+                  >
+                    <option value="tracked">Tracked (Box Count)</option>
+                    <option value="unlimited">Unlimited</option>
+                  </select>
+                </div>
+
+                {boxForm.inventoryPolicy === 'tracked' && (
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Box Stock Qty *</label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={boxForm.stock}
+                      onChange={(e) =>
+                        setBoxForm({
+                          ...boxForm,
+                          stock: Math.max(0, Number(e.target.value) || 0),
+                        })
+                      }
+                      className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-bold"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={boxForm.inStock}
+                  onChange={(e) => setBoxForm({ ...boxForm, inStock: e.target.checked })}
+                  className="rounded text-[#244C37]"
+                />
+                <span className="font-semibold text-gray-700">In Stock for Custom Orders</span>
+              </label>
+
               <div className="pt-3 border-t border-[#E8DDCA] flex items-center justify-end space-x-3">
                 <button
                   type="button"
@@ -2001,22 +2222,42 @@ export const AdminDashboard: React.FC = () => {
       {/* TAB 3: ORDERS MANAGEMENT (Active, Completed, Returns) */}
       {(activeTab === 'orders' || activeTab === 'completed-orders' || activeTab === 'returns') && (
         <div className="py-6 space-y-6">
-          <div className="flex items-center space-x-2">
-            <div className={`p-2 rounded-xl ${
-              activeTab === 'orders' ? 'bg-blue-50 text-blue-600' : 
-              activeTab === 'completed-orders' ? 'bg-emerald-50 text-emerald-600' : 
-              'bg-rose-50 text-rose-600'
-            }`}>
-              {activeTab === 'orders' && <ShoppingBag className="w-5 h-5" />}
-              {activeTab === 'completed-orders' && <CheckCircle2 className="w-5 h-5" />}
-              {activeTab === 'returns' && <RotateCcw className="w-5 h-5" />}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center space-x-2">
+              <div className={`p-2 rounded-xl ${
+                activeTab === 'orders' ? 'bg-blue-50 text-blue-600' : 
+                activeTab === 'completed-orders' ? 'bg-emerald-50 text-emerald-600' : 
+                'bg-rose-50 text-rose-600'
+              }`}>
+                {activeTab === 'orders' && <ShoppingBag className="w-5 h-5" />}
+                {activeTab === 'completed-orders' && <CheckCircle2 className="w-5 h-5" />}
+                {activeTab === 'returns' && <RotateCcw className="w-5 h-5" />}
+              </div>
+              <h2 className="font-serif text-2xl font-bold text-[#244C37]">
+                {activeTab === 'orders' && 'Active Customer Orders'}
+                {activeTab === 'completed-orders' && 'Completed (Delivered) Orders'}
+                {activeTab === 'returns' && 'Customer Returns'}
+              </h2>
             </div>
-            <h2 className="font-serif text-2xl font-bold text-[#244C37]">
-              {activeTab === 'orders' && 'Active Customer Orders'}
-              {activeTab === 'completed-orders' && 'Completed (Delivered) Orders'}
-              {activeTab === 'returns' && 'Customer Returns'}
-            </h2>
+
+            <button
+              type="button"
+              onClick={() => refreshAdminData()}
+              disabled={ordersPagination.refreshing}
+              className="px-3 py-1.5 bg-white border border-[#E8DDCA] hover:bg-[#F8F5ED] text-[#244C37] text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+            >
+              {ordersPagination.refreshing ? 'Refreshing...' : 'Refresh Orders'}
+            </button>
           </div>
+
+          {orderError && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs font-semibold flex items-center justify-between">
+              <span>{orderError}</span>
+              <button type="button" onClick={() => setOrderError(null)} className="underline ml-4 cursor-pointer">
+                Dismiss
+              </button>
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center space-x-2 flex-1 max-w-2xl">
@@ -2057,7 +2298,7 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <span className="text-xs text-gray-500 whitespace-nowrap">
-              {filteredOrders.length} Orders Found
+              {filteredOrders.length} Orders Shown
             </span>
           </div>
 
@@ -2131,32 +2372,82 @@ export const AdminDashboard: React.FC = () => {
                           </span>
                         </td>
                         <td className="p-2 border-r border-gray-200">
-                          <select
-                            value={ord.orderStatus}
-                            onChange={(e) =>
-                              updateOrderStatus(
-                                ord.id,
-                                e.target.value as OrderStatus,
-                                `Admin changed status to ${e.target.value}`
-                              )
-                            }
-                            className={`w-full text-[10px] p-1 rounded border font-bold ${
-                              ord.orderStatus === 'Delivered'
-                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                : ord.orderStatus === 'Cancelled'
-                                ? 'bg-red-50 border-red-200 text-red-800'
-                                : 'bg-white border-gray-300'
-                            }`}
-                          >
-                            <option value="Pending">Pending</option>
-                            <option value="Confirmed">Confirmed</option>
-                            <option value="Processing">Processing</option>
-                            <option value="Packed">Packed</option>
-                            <option value="Shipped">Shipped</option>
-                            <option value="Delivered">Delivered</option>
-                            <option value="Returned">Returned</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
+                          {(() => {
+                            const transitionMap: Record<OrderStatus, OrderStatus[]> = {
+                              Pending: ['Confirmed', 'Processing', 'Packed', 'Shipped', 'Cancelled'],
+                              Confirmed: ['Processing', 'Packed', 'Shipped', 'Cancelled'],
+                              Processing: ['Packed', 'Shipped', 'Cancelled'],
+                              Packed: ['Shipped', 'Cancelled'],
+                              Shipped: ['Delivered', 'Returned', 'Cancelled'],
+                              Delivered: ['Returned'],
+                              Cancelled: [],
+                              Returned: [],
+                            };
+                            const allowedNext = transitionMap[ord.orderStatus] ?? [];
+                            const isTerminal = ord.stockRestored === true || allowedNext.length === 0;
+                            const allStatuses: OrderStatus[] = [
+                              'Pending',
+                              'Confirmed',
+                              'Processing',
+                              'Packed',
+                              'Shipped',
+                              'Delivered',
+                              'Returned',
+                              'Cancelled',
+                            ];
+
+                            return (
+                              <select
+                                value={ord.orderStatus}
+                                disabled={isTerminal || updatingOrderId === ord.id}
+                                onChange={async (e) => {
+                                  const nextStatus = e.target.value as OrderStatus;
+                                  if (nextStatus === ord.orderStatus) return;
+                                  setOrderError(null);
+                                  setUpdatingOrderId(ord.id);
+                                  try {
+                                    await updateOrderStatus(
+                                      ord.id,
+                                      nextStatus,
+                                      `Admin changed status to ${nextStatus}`
+                                    );
+                                  } catch (err: unknown) {
+                                    setOrderError(
+                                      err instanceof Error
+                                        ? `Order ${ord.orderNumber}: ${err.message}`
+                                        : `Failed to update status for ${ord.orderNumber}.`
+                                    );
+                                  } finally {
+                                    setUpdatingOrderId(null);
+                                  }
+                                }}
+                                title={
+                                  isTerminal
+                                    ? 'Terminal order status — cannot transition further.'
+                                    : 'Select next order workflow stage'
+                                }
+                                className={`w-full text-[10px] p-1 rounded border font-bold disabled:opacity-70 ${
+                                  ord.orderStatus === 'Delivered'
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                    : ord.orderStatus === 'Cancelled' || ord.orderStatus === 'Returned'
+                                    ? 'bg-red-50 border-red-200 text-red-800'
+                                    : 'bg-white border-gray-300'
+                                }`}
+                              >
+                                {allStatuses.map((statusOption) => (
+                                  <option
+                                    key={statusOption}
+                                    value={statusOption}
+                                    disabled={
+                                      statusOption !== ord.orderStatus && !allowedNext.includes(statusOption)
+                                    }
+                                  >
+                                    {statusOption}
+                                  </option>
+                                ))}
+                              </select>
+                            );
+                          })()}
                         </td>
                         <td className="p-2 text-right">
                           <div className="flex items-center justify-end space-x-1">
@@ -2188,6 +2479,19 @@ export const AdminDashboard: React.FC = () => {
               </table>
             </div>
           </div>
+
+          {ordersPagination.hasMore && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => loadMoreOrders()}
+                disabled={ordersPagination.loadingMore}
+                className="px-5 py-2.5 bg-white border border-[#E8DDCA] hover:bg-[#F8F5ED] text-[#244C37] text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                {ordersPagination.loadingMore ? 'Loading More Orders...' : 'Load More Orders'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -2418,6 +2722,19 @@ export const AdminDashboard: React.FC = () => {
               </table>
             </div>
           </div>
+
+          {wholesalePagination.hasMore && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => loadMoreWholesale()}
+                disabled={wholesalePagination.loadingMore}
+                className="px-5 py-2.5 bg-white border border-[#E8DDCA] hover:bg-[#F8F5ED] text-[#244C37] text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                {wholesalePagination.loadingMore ? 'Loading More Leads...' : 'Load More Wholesale Leads'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -2463,11 +2780,15 @@ export const AdminDashboard: React.FC = () => {
                       </td>
                       <td className="p-3 text-right">
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             const updatedVariants = p.variants.map((vr) =>
                               vr.id === v.id ? { ...vr, stock: vr.stock + 10 } : vr
                             );
-                            updateProduct({ ...p, variants: updatedVariants });
+                            await updateProduct({
+                              ...p,
+                              variants: updatedVariants,
+                              inStock: updatedVariants.some((vr) => vr.stock > 0),
+                            });
                           }}
                           className="px-3 py-1 bg-[#244C37] text-white text-[11px] font-bold rounded-lg hover:bg-[#1A3828] cursor-pointer"
                         >
@@ -2507,6 +2828,7 @@ export const AdminDashboard: React.FC = () => {
                   isActive: true,
                   expiryDate: '2026-12-31',
                   usageCount: 0,
+                  usageLimit: undefined,
                 });
                 setIsCouponModalOpen(true);
               }}
@@ -2549,7 +2871,10 @@ export const AdminDashboard: React.FC = () => {
                   </p>
                   <p className="text-[11px] text-gray-400">
                     Min Order: Rs. {c.minOrderAmount.toLocaleString()} • Used:{' '}
-                    {c.usageCount} times
+                    {c.usageCount}
+                    {typeof c.usageLimit === 'number' && c.usageLimit > 0
+                      ? ` / ${c.usageLimit}`
+                      : ' times'}
                   </p>
                   {c.expiryDate && (
                     <p className="text-[10px] text-gray-400 mt-1 font-mono">
@@ -2579,6 +2904,19 @@ export const AdminDashboard: React.FC = () => {
               </div>
             ))}
           </div>
+
+          {couponsPagination.hasMore && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => loadMoreCoupons()}
+                disabled={couponsPagination.loadingMore}
+                className="px-5 py-2.5 bg-white border border-[#E8DDCA] hover:bg-[#F8F5ED] text-[#244C37] text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                {couponsPagination.loadingMore ? 'Loading More Coupons...' : 'Load More Coupons'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -2666,6 +3004,19 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
             ))
+          )}
+
+          {reviewsPagination.hasMore && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => loadMoreReviews()}
+                disabled={reviewsPagination.loadingMore}
+                className="px-5 py-2.5 bg-white border border-[#E8DDCA] hover:bg-[#F8F5ED] text-[#244C37] text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                {reviewsPagination.loadingMore ? 'Loading More Reviews...' : 'Load More Reviews'}
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -2836,147 +3187,96 @@ export const AdminDashboard: React.FC = () => {
         </form>
       )}
 
-      {/* TAB 8: IONOS SHARED HOSTING EXPORT CENTER */}
+      {/* TAB 8: IONOS SINGLE-HOSTING DEPLOYMENT SUITE (PHP 8.x + FIRESTORE) */}
       {activeTab === 'ionos' && (
         <div className="py-6 space-y-8">
           <div className="bg-[#244C37] text-white p-6 sm:p-8 rounded-3xl border border-[#1A3828] space-y-4">
             <div className="flex items-center space-x-2 text-[#C99A45]">
               <Server className="w-6 h-6" />
               <span className="text-xs font-bold uppercase tracking-wider">
-                Production Shared Hosting Export Suite
+                Single-Host IONOS Plus Webspace Architecture
               </span>
             </div>
             <h2 className="font-serif text-2xl sm:text-3xl font-bold">
-              IONOS PHP 8.2 + MySQL Production Architecture
+              IONOS PHP 8.x + Firebase Firestore REST Architecture
             </h2>
             <p className="text-xs sm:text-sm text-[#E8DDCA]/80 leading-relaxed max-w-3xl">
-              Strictly engineered for standard shared hosting environments without Node.js, Docker, or external build processes. This production bundle contains the 26 normalized MySQL tables, PDO database connectors, clean .htaccess Apache routing, and vanilla MVC code ready for upload to your IONOS public_html folder.
+              Built to run completely on a single IONOS Plus Webspace account: compiled React SPA and Apache <code className="font-mono text-[#F8F5ED]">public_html/.htaccess</code> at web root, paired with the PHP 8.x REST API (<code className="font-mono text-[#F8F5ED]">public_html/api/index.php</code> -&gt; <code className="font-mono text-[#F8F5ED]">backend/</code>) talking directly to Firebase Firestore over Service Account JWTs.
             </p>
 
             <div className="flex flex-wrap gap-3 pt-2">
               <button
-                onClick={() =>
-                  handleDownloadFile(
-                    IONOS_MYSQL_SCHEMA,
-                    'zauq_ecommerce_schema_26_tables.sql',
-                    'text/plain'
-                  )
-                }
-                className="px-4 py-2.5 bg-[#C99A45] hover:bg-[#AA7F32] text-[#244C37] rounded-xl text-xs font-bold flex items-center space-x-2 shadow-sm cursor-pointer"
+                type="button"
+                disabled={checkingHealth}
+                onClick={async () => {
+                  setCheckingHealth(true);
+                  setHealthResult(null);
+                  try {
+                    const res = await fetch('/api/health');
+                    const text = await res.text();
+                    setHealthResult({ ok: res.ok, status: res.status, body: text });
+                  } catch (err: unknown) {
+                    setHealthResult({
+                      ok: false,
+                      status: 0,
+                      body: err instanceof Error ? err.message : 'Unable to reach /api/health',
+                    });
+                  } finally {
+                    setCheckingHealth(false);
+                  }
+                }}
+                className="px-4 py-2.5 bg-[#C99A45] hover:bg-[#AA7F32] text-[#244C37] rounded-xl text-xs font-bold flex items-center space-x-2 shadow-sm cursor-pointer disabled:opacity-50"
               >
-                <Download className="w-4 h-4" />
-                <span>Download Schema (26 Tables SQL)</span>
+                <Server className="w-4 h-4" />
+                <span>{checkingHealth ? 'Testing /api/health...' : 'Test /api/health Endpoint'}</span>
               </button>
 
               <button
+                type="button"
                 onClick={() =>
-                  handleDownloadFile(IONOS_SEED_DATA, 'zauq_seed_data.sql', 'text/plain')
+                  handleDownloadFile(IONOS_PHP_SECRETS_TEMPLATE, 'secrets.example.php', 'text/plain')
                 }
                 className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex items-center space-x-2 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                <span>Download Seed Data SQL</span>
-              </button>
-
-              <button
-                onClick={() =>
-                  handleDownloadFile(IONOS_HTACCESS, '.htaccess', 'text/plain')
-                }
-                className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex items-center space-x-2 cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download .htaccess</span>
+                <span>Download secrets.example.php</span>
               </button>
             </div>
+
+            {healthResult && (
+              <div
+                className={`mt-3 p-4 rounded-2xl text-xs font-mono border ${
+                  healthResult.ok
+                    ? 'bg-emerald-950/60 border-emerald-400/40 text-emerald-100'
+                    : 'bg-amber-950/60 border-amber-400/40 text-amber-100'
+                }`}
+              >
+                <div className="font-bold mb-1">
+                  GET /api/health -&gt; HTTP {healthResult.status || 'Network Error'}
+                </div>
+                <pre className="whitespace-pre-wrap break-words text-[11px]">{healthResult.body}</pre>
+              </div>
+            )}
           </div>
 
-          {/* Section 1: 26 Normalized MySQL Tables */}
+          {/* Section 1: Non-Secret PHP Configuration Template */}
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DDCA] shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#E8DDCA]">
               <div>
                 <h3 className="font-serif text-lg font-bold text-[#242821]">
-                  1. Production MySQL Schema (26 Normalized Tables)
+                  1. PHP Secrets Template (private/config/secrets.example.php)
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Includes users, admin_users, customers, addresses, categories, products, variants, orders, items, payments, coupons, reviews, wishlists, blog, audit_logs.
+                  Copy into <code className="font-mono">private/config/secrets.php</code> above <code className="font-mono">public_html/</code> on IONOS. No private keys or hashes are bundled in frontend code.
                 </p>
               </div>
 
               <button
-                onClick={() => handleCopyText(IONOS_MYSQL_SCHEMA, 'schema')}
+                type="button"
+                onClick={() => handleCopyText(IONOS_PHP_SECRETS_TEMPLATE, 'secrets')}
                 className="px-3 py-1.5 bg-[#F8F5ED] hover:bg-[#E8DDCA] text-xs font-bold rounded-lg border border-[#E8DDCA] flex items-center space-x-1.5 cursor-pointer"
               >
-                {copiedSection === 'schema' ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Copied SQL!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5 text-gray-600" />
-                    <span>Copy Schema SQL</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            <pre className="p-4 bg-[#1A3828] text-[#F8F5ED] text-[11px] font-mono rounded-2xl overflow-x-auto max-h-72 leading-relaxed">
-              {IONOS_MYSQL_SCHEMA}
-            </pre>
-          </div>
-
-          {/* Section 2: PHP 8.2 Database PDO Singleton */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DDCA] shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E8DDCA]">
-              <div>
-                <h3 className="font-serif text-lg font-bold text-[#242821]">
-                  2. PDO Database Connection Singleton (config/database.php)
-                </h3>
-                <p className="text-xs text-gray-500">
-                  Enforces prepared statements, utf8mb4 encoding, and error logging for IONOS credentials.
-                </p>
-              </div>
-
-              <button
-                onClick={() => handleCopyText(IONOS_PHP_DATABASE_CONFIG, 'pdo')}
-                className="px-3 py-1.5 bg-[#F8F5ED] hover:bg-[#E8DDCA] text-xs font-bold rounded-lg border border-[#E8DDCA] flex items-center space-x-1.5 cursor-pointer"
-              >
-                {copiedSection === 'pdo' ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Copied PHP!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5 text-gray-600" />
-                    <span>Copy database.php</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            <pre className="p-4 bg-[#1A3828] text-[#F8F5ED] text-[11px] font-mono rounded-2xl overflow-x-auto max-h-56 leading-relaxed">
-              {IONOS_PHP_DATABASE_CONFIG}
-            </pre>
-          </div>
-
-          {/* Section 3: IONOS Apache .htaccess */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DDCA] shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E8DDCA]">
-              <div>
-                <h3 className="font-serif text-lg font-bold text-[#242821]">
-                  3. Apache Configuration (.htaccess)
-                </h3>
-                <p className="text-xs text-gray-500">
-                  Forces HTTPS, sets security headers (X-Frame-Options, nosniff), enables Gzip, and routes clean URLs.
-                </p>
-              </div>
-
-              <button
-                onClick={() => handleCopyText(IONOS_HTACCESS, 'htaccess')}
-                className="px-3 py-1.5 bg-[#F8F5ED] hover:bg-[#E8DDCA] text-xs font-bold rounded-lg border border-[#E8DDCA] flex items-center space-x-1.5 cursor-pointer"
-              >
-                {copiedSection === 'htaccess' ? (
+                {copiedSection === 'secrets' ? (
                   <>
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Copied!</span>
@@ -2984,14 +3284,14 @@ export const AdminDashboard: React.FC = () => {
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5 text-gray-600" />
-                    <span>Copy .htaccess</span>
+                    <span>Copy Template</span>
                   </>
                 )}
               </button>
             </div>
 
-            <pre className="p-4 bg-[#1A3828] text-[#F8F5ED] text-[11px] font-mono rounded-2xl overflow-x-auto max-h-56 leading-relaxed">
-              {IONOS_HTACCESS}
+            <pre className="p-4 bg-[#1A3828] text-[#F8F5ED] text-[11px] font-mono rounded-2xl overflow-x-auto max-h-72 leading-relaxed">
+              {IONOS_PHP_SECRETS_TEMPLATE}
             </pre>
           </div>
 
@@ -3029,16 +3329,15 @@ export const AdminDashboard: React.FC = () => {
             </button>
           </div>
 
-          {/* Section 4: IONOS Deployment Checklist */}
+          {/* Section 2: IONOS Deployment Checklist */}
           <div className="bg-[#F8F5ED] p-6 sm:p-8 rounded-3xl border border-[#E8DDCA] space-y-3">
             <h3 className="font-serif text-lg font-bold text-[#244C37]">
-              IONOS Plus Webspace Single-Hosting Deployment Checklist (PHP 8.2 + Firestore REST):
+              IONOS Plus Webspace Single-Hosting Deployment Checklist (PHP 8.x + Firestore REST):
             </h3>
             <ol className="list-decimal list-inside space-y-2 text-xs text-gray-700 leading-relaxed">
-              <li>Build the IONOS bundle locally with <strong>npm run build:ionos</strong> to populate <strong>public_html/</strong>.</li>
-              <li>Ensure <strong>private/</strong> and <strong>backend/</strong> live above or isolated from web root, copying <strong>private/config/secrets.example.php</strong> to <strong>private/config/secrets.php</strong> and placing your Google Service Account JSON inside <strong>private/credentials/service-account.json</strong>.</li>
-              <li>Ensure PHP version is set to <strong>PHP 8.1+ (8.2/8.3 recommended)</strong> in IONOS Domain Settings with <strong>curl</strong> and <strong>openssl</strong> enabled.</li>
-              <li>Verify <strong>/api/health</strong> returns HTTP 200 and verify admin sign-in via Firebase Auth Google Sign-In matching an active UID document under Firestore <strong>/admins/&#123;uid&#125;</strong>.</li>
+              {IONOS_DEPLOYMENT_CHECKLIST.map((item, idx) => (
+                <li key={idx}>{item}</li>
+              ))}
             </ol>
           </div>
         </div>
@@ -3377,7 +3676,7 @@ export const AdminDashboard: React.FC = () => {
                 </label>
               </div>
 
-              {/* Analytics & User Visits Field */}
+              {/* Analytics & User Visits Field (Server-Managed Read-Only) */}
               <div className="p-4 bg-emerald-50/50 border border-emerald-200/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 rounded-xl bg-emerald-100 text-[#244C37]">
@@ -3386,24 +3685,14 @@ export const AdminDashboard: React.FC = () => {
                   <div>
                     <h4 className="font-bold text-gray-800 text-xs">Total User Visits Counter</h4>
                     <p className="text-[11px] text-gray-500">
-                      Real-time counter incremented each time shoppers open this harvest product.
+                      Read-only analytics counter incremented atomically on the server when shoppers open this product.
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs text-gray-600 font-medium">Count:</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={editingProduct.viewCount ?? 0}
-                    onChange={(e) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        viewCount: Math.max(0, parseInt(e.target.value, 10) || 0),
-                      })
-                    }
-                    className="w-24 p-1.5 rounded-xl border border-emerald-300 bg-white font-mono font-bold text-center text-xs"
-                  />
+                <div className="flex items-center space-x-2 px-3 py-1.5 rounded-xl border border-emerald-300 bg-white">
+                  <span className="font-mono font-bold text-xs text-[#244C37]">
+                    {(editingProduct.viewCount ?? 0).toLocaleString()}
+                  </span>
                   <span className="text-[11px] text-gray-500">views</span>
                 </div>
               </div>
@@ -3515,10 +3804,10 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="font-bold text-gray-700 block mb-1">
-                    Minimum Order Amount (PKR) *
+                    Min Order (PKR) *
                   </label>
                   <input
                     type="number"
@@ -3532,6 +3821,25 @@ export const AdminDashboard: React.FC = () => {
                       })
                     }
                     placeholder="2000"
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">
+                    Usage Limit (Optional)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={couponForm.usageLimit ?? ''}
+                    onChange={(e) =>
+                      setCouponForm({
+                        ...couponForm,
+                        usageLimit: e.target.value ? Math.max(1, parseInt(e.target.value, 10) || 1) : undefined,
+                      })
+                    }
+                    placeholder="Unlimited"
                     className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-semibold"
                   />
                 </div>

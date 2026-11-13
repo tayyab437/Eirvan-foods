@@ -15,13 +15,29 @@ final class RequestValidator
 
     public static function normalizePhone(string $phone): string
     {
-        return preg_replace('/[^0-9]/', '', trim($phone)) ?? '';
+        $digits = preg_replace('/[^0-9]/', '', trim($phone)) ?? '';
+        if (preg_match('/^0092(3\d{9})$/', $digits, $m) === 1) {
+            return '0' . $m[1];
+        }
+        if (preg_match('/^0092(03\d{9})$/', $digits, $m) === 1) {
+            return $m[1];
+        }
+        if (preg_match('/^92(3\d{9})$/', $digits, $m) === 1) {
+            return '0' . $m[1];
+        }
+        if (preg_match('/^92(03\d{9})$/', $digits, $m) === 1) {
+            return $m[1];
+        }
+        if (preg_match('/^3\d{9}$/', $digits) === 1) {
+            return '0' . $digits;
+        }
+        return $digits;
     }
 
     public static function isValidPakistaniMobile(string $phone): bool
     {
         $digits = self::normalizePhone($phone);
-        return strlen($digits) === 11 && str_starts_with($digits, '03');
+        return preg_match('/^03\d{9}$/', $digits) === 1;
     }
 
     public static function cleanString(mixed $val, int $maxLen): string
@@ -111,6 +127,16 @@ final class RequestValidator
         return $errors;
     }
 
+    public static function isValidIsoDate(string $date): bool
+    {
+        $trimmed = trim($date);
+        if ($trimmed === '') {
+            return false;
+        }
+        $dt = \DateTimeImmutable::createFromFormat('!Y-m-d', $trimmed, new \DateTimeZone('Asia/Karachi'));
+        return $dt !== false && $dt->format('Y-m-d') === $trimmed;
+    }
+
     public static function validateCouponPayload(array $data): array
     {
         $errors = [];
@@ -127,6 +153,12 @@ final class RequestValidator
         }
         if ((float) ($data['minOrderAmount'] ?? -1) < 0) {
             $errors[] = 'minOrderAmount must be non-negative.';
+        }
+        if (isset($data['expiryDate']) && trim((string) $data['expiryDate']) !== '' && !self::isValidIsoDate((string) $data['expiryDate'])) {
+            $errors[] = 'expiryDate must be in YYYY-MM-DD format.';
+        }
+        if (isset($data['usageLimit']) && $data['usageLimit'] !== null && $data['usageLimit'] !== '' && (int) $data['usageLimit'] < 1) {
+            $errors[] = 'usageLimit must be a positive integer when provided.';
         }
         return $errors;
     }

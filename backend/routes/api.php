@@ -125,7 +125,7 @@ return static function (array $container): void {
         return;
     }
     if ($method === 'GET' && $route === '/coupons') {
-        $send($container['coupons']->listAdmin());
+        $send($container['coupons']->listAdmin($_GET));
         return;
     }
     if ($method === 'POST' && $route === '/coupons') {
@@ -147,7 +147,7 @@ return static function (array $container): void {
         return;
     }
     if ($method === 'GET' && $route === '/reviews') {
-        $send($container['reviews']->listAdmin());
+        $send($container['reviews']->listAdmin($_GET));
         return;
     }
     if ($method === 'PATCH' && preg_match('#^/reviews/([a-zA-Z0-9_\-]+)$#', $route, $m)) {
@@ -179,7 +179,7 @@ return static function (array $container): void {
         return;
     }
     if ($method === 'GET' && $route === '/wholesale') {
-        $send($container['wholesale']->listAdmin());
+        $send($container['wholesale']->listAdmin($_GET));
         return;
     }
     if ($method === 'PATCH' && preg_match('#^/wholesale/([a-zA-Z0-9_\-]+)$#', $route, $m)) {

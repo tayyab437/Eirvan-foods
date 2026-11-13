@@ -27,6 +27,23 @@ export interface SelectedFillingItem {
   image: string;
 }
 
+function isBoxAvailable(box?: ShahiMixBox | null): boolean {
+  if (!box) return false;
+  if (box.inStock === false) return false;
+  if (box.inventoryPolicy !== 'unlimited' && typeof box.stock === 'number' && box.stock <= 0) {
+    return false;
+  }
+  return true;
+}
+
+function isIngredientPortionAvailable(ing: ShahiMixIngredient, portion: ShahiMixPortion): boolean {
+  if (!ing.inStock) return false;
+  if (ing.inventoryPolicy !== 'unlimited' && typeof ing.stockGrams === 'number') {
+    return ing.stockGrams >= portion.weightGrams;
+  }
+  return true;
+}
+
 export const GiftBoxBuilder: React.FC = () => {
   const { addToCart, setIsCartOpen, shahiMixBoxes, shahiMixIngredients } = useStore();
 
@@ -34,13 +51,22 @@ export const GiftBoxBuilder: React.FC = () => {
   const ingredients = shahiMixIngredients && shahiMixIngredients.length > 0 ? shahiMixIngredients : [];
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [selectedBox, setSelectedBox] = useState<ShahiMixBox>(boxes[0]);
+  const [selectedBox, setSelectedBox] = useState<ShahiMixBox | undefined>(() => boxes.find(isBoxAvailable) ?? boxes[0]);
   const [selectedFillings, setSelectedFillings] = useState<SelectedFillingItem[]>([]);
 
-  // Default selection when component mounts
+  // Default selection when boxes hydrate or change
   React.useEffect(() => {
-    if (boxes.length > 0 && !selectedBox) {
-      setSelectedBox(boxes[0]);
+    if (boxes.length === 0) {
+      if (selectedBox) setSelectedBox(undefined);
+      return;
+    }
+    if (!selectedBox || !boxes.some((b) => b.id === selectedBox.id)) {
+      setSelectedBox(boxes.find(isBoxAvailable) ?? boxes[0]);
+    } else {
+      const refreshed = boxes.find((b) => b.id === selectedBox.id);
+      if (refreshed && refreshed !== selectedBox) {
+        setSelectedBox(refreshed);
+      }
     }
   }, [boxes, selectedBox]);
 
@@ -58,6 +84,15 @@ export const GiftBoxBuilder: React.FC = () => {
 
   const handleSelectPortion = (ing: ShahiMixIngredient, portion: ShahiMixPortion) => {
     setBuilderError(null);
+    if (!selectedBox) return;
+
+    if (!isIngredientPortionAvailable(ing, portion)) {
+      setBuilderError(
+        `${ing.name} (${portion.weight}) does not have enough stock remaining right now.`
+      );
+      return;
+    }
+
     const existingIndex = selectedFillings.findIndex((f) => f.ingredientId === ing.id);
     if (existingIndex > -1) {
       // Update portion of existing ingredient
@@ -94,9 +129,20 @@ export const GiftBoxBuilder: React.FC = () => {
   };
 
   const handleAddBoxToCart = () => {
+    if (!selectedBox || !isBoxAvailable(selectedBox)) {
+      setBuilderError('Selected gift box packaging is currently out of stock. Please pick another box style.');
+      return;
+    }
     if (selectedFillings.length < 2) {
       setBuilderError('Please select at least 2 dry fruit portion fillings for your Shahi Mix Box.');
       return;
+    }
+    for (const f of selectedFillings) {
+      const liveIng = ingredients.find((i) => i.id === f.ingredientId);
+      if (!liveIng || !isIngredientPortionAvailable(liveIng, f.portion)) {
+        setBuilderError(`${f.name} (${f.portion.weight}) is no longer available in stock. Please adjust your selection.`);
+        return;
+      }
     }
     setBuilderError(null);
 
@@ -119,7 +165,10 @@ export const GiftBoxBuilder: React.FC = () => {
           weight: `${totalWeightGrams}g Total (${selectedFillings.length} Fillings)`,
           sku: `SHAHI-MIX-${Math.floor(1000 + Math.random() * 9000)}`,
           price: totalBoxPrice,
-          stock: 50,
+          stock:
+            selectedBox.inventoryPolicy === 'tracked' && typeof selectedBox.stock === 'number'
+              ? Math.max(1, selectedBox.stock)
+              : 50,
         },
       ],
       featured: true,
@@ -160,7 +209,21 @@ export const GiftBoxBuilder: React.FC = () => {
     setIsCartOpen(true);
   };
 
-  if (!selectedBox) return null;
+  if (!selectedBox || boxes.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="bg-white rounded-3xl border border-[#E7DDCA] p-10 text-center space-y-3 shadow-xs">
+          <Gift className="w-10 h-10 text-[#B69A62] mx-auto" />
+          <h1 className="font-serif text-2xl sm:text-3xl text-[#344B36]">
+            Shahi Mix Gift Box Builder Currently Unavailable
+          </h1>
+          <p className="text-xs sm:text-sm text-[#5E5750] max-w-lg mx-auto">
+            Our handcrafted outer box styles are currently being replenished in our warehouse. Please check back shortly or browse our ready-to-ship Gift Boxes collection.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -245,28 +308,41 @@ export const GiftBoxBuilder: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {boxes.map((box) => {
                   const isSel = selectedBox.id === box.id;
+                  const boxAvailable = isBoxAvailable(box);
                   return (
                     <div
                       key={box.id}
                       onClick={() => {
+                        if (!boxAvailable) {
+                          setBuilderError(`"${box.name}" is currently out of stock.`);
+                          return;
+                        }
+                        setBuilderError(null);
                         setSelectedBox(box);
                         if (selectedFillings.length > box.capacity) {
                           setSelectedFillings(selectedFillings.slice(0, box.capacity));
                         }
                       }}
-                      className={`p-4 rounded-3xl border transition-all cursor-pointer flex flex-col justify-between ${
-                        isSel
-                          ? 'border-[#344B36] bg-white shadow-md ring-2 ring-[#344B36]/15'
-                          : 'border-[#E7DDCA] bg-[#F7F4EC] hover:bg-white'
+                      className={`p-4 rounded-3xl border transition-all flex flex-col justify-between ${
+                        !boxAvailable
+                          ? 'border-gray-200 bg-gray-100/70 opacity-60 cursor-not-allowed'
+                          : isSel
+                          ? 'border-[#344B36] bg-white shadow-md ring-2 ring-[#344B36]/15 cursor-pointer'
+                          : 'border-[#E7DDCA] bg-[#F7F4EC] hover:bg-white cursor-pointer'
                       }`}
                     >
                       <div>
-                        <div className="aspect-4/3 rounded-2xl overflow-hidden mb-3 bg-gray-100">
+                        <div className="aspect-4/3 rounded-2xl overflow-hidden mb-3 bg-gray-100 relative">
                           <img
                             src={box.image}
                             alt={box.name}
                             className="w-full h-full object-cover"
                           />
+                          {!boxAvailable && (
+                            <span className="absolute top-2 right-2 bg-rose-700 text-white text-[10px] font-bold uppercase px-2 py-0.5 rounded-full">
+                              Out of Stock
+                            </span>
+                          )}
                         </div>
                         <h4 className="font-serif text-base font-bold text-[#302A25] leading-snug mb-1">
                           {box.name}
@@ -323,76 +399,97 @@ export const GiftBoxBuilder: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 gap-4">
-                {ingredients.map((ing) => {
-                  const currentSelected = selectedFillings.find((f) => f.ingredientId === ing.id);
-                  return (
-                    <div
-                      key={ing.id}
-                      className={`p-4 rounded-2xl border transition-all ${
-                        currentSelected
-                          ? 'border-[#344B36] bg-white shadow-sm ring-1 ring-[#344B36]/15'
-                          : 'border-[#E7DDCA] bg-[#F7F4EC]'
-                      }`}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex items-center space-x-3.5">
-                          <img
-                            src={ing.image}
-                            alt={ing.name}
-                            className="w-16 h-16 rounded-2xl object-cover shrink-0"
-                          />
-                          <div>
-                            <h4 className="text-sm font-bold text-[#302A25]">
-                              {ing.name}
-                            </h4>
-                            <span className="text-[11px] text-gray-500 block font-mono">
-                              {ing.inStock ? 'Available in 100g, 250g, 500g, 1kg' : 'Out of Stock'}
-                            </span>
+                {ingredients.length === 0 ? (
+                  <div className="p-8 bg-white rounded-2xl border border-[#E7DDCA] text-center text-xs text-gray-500">
+                    No dry fruit portions are currently available in stock. Please check back soon.
+                  </div>
+                ) : (
+                  ingredients.map((ing) => {
+                    const currentSelected = selectedFillings.find((f) => f.ingredientId === ing.id);
+                    const hasAnyPortion = ing.portions.some((p) => isIngredientPortionAvailable(ing, p));
+                    return (
+                      <div
+                        key={ing.id}
+                        className={`p-4 rounded-2xl border transition-all ${
+                          !hasAnyPortion
+                            ? 'border-gray-200 bg-gray-50 opacity-60'
+                            : currentSelected
+                            ? 'border-[#344B36] bg-white shadow-sm ring-1 ring-[#344B36]/15'
+                            : 'border-[#E7DDCA] bg-[#F7F4EC]'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="flex items-center space-x-3.5">
+                            <img
+                              src={ing.image}
+                              alt={ing.name}
+                              className="w-16 h-16 rounded-2xl object-cover shrink-0"
+                            />
+                            <div>
+                              <h4 className="text-sm font-bold text-[#302A25]">
+                                {ing.name}
+                              </h4>
+                              <span className="text-[11px] text-gray-500 block font-mono">
+                                {hasAnyPortion
+                                  ? ing.inventoryPolicy !== 'unlimited' && typeof ing.stockGrams === 'number'
+                                    ? `In Stock (${ing.stockGrams}g available)`
+                                    : 'Available in 100g, 250g, 500g, 1kg'
+                                  : 'Out of Stock'}
+                              </span>
+                            </div>
                           </div>
-                        </div>
 
-                        {/* Weight selector buttons */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          {ing.portions.map((portion) => {
-                            const isPortionSel = currentSelected?.portion.id === portion.id;
-                            return (
-                              <button
-                                key={portion.id}
-                                type="button"
-                                onClick={() => handleSelectPortion(ing, portion)}
-                                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex flex-col items-center min-w-[70px] ${
-                                  isPortionSel
-                                    ? 'bg-[#344B36] text-white shadow-sm scale-103'
-                                    : 'bg-white border border-[#E7DDCA] text-gray-700 hover:border-[#344B36]'
-                                }`}
-                              >
-                                <span className="font-mono">{portion.weight}</span>
-                                <span
-                                  className={`text-[10px] font-normal mt-0.5 ${
-                                    isPortionSel ? 'text-[#B69A62]' : 'text-gray-500'
+                          {/* Weight selector buttons */}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {ing.portions.map((portion) => {
+                              const isPortionSel = currentSelected?.portion.id === portion.id;
+                              const portionAvailable = isIngredientPortionAvailable(ing, portion);
+                              return (
+                                <button
+                                  key={portion.id}
+                                  type="button"
+                                  disabled={!portionAvailable}
+                                  onClick={() => handleSelectPortion(ing, portion)}
+                                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center min-w-[70px] ${
+                                    !portionAvailable
+                                      ? 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed line-through'
+                                      : isPortionSel
+                                      ? 'bg-[#344B36] text-white shadow-sm scale-103 cursor-pointer'
+                                      : 'bg-white border border-[#E7DDCA] text-gray-700 hover:border-[#344B36] cursor-pointer'
                                   }`}
                                 >
-                                  Rs. {portion.price.toLocaleString()}
-                                </span>
-                              </button>
-                            );
-                          })}
+                                  <span className="font-mono">{portion.weight}</span>
+                                  <span
+                                    className={`text-[10px] font-normal mt-0.5 ${
+                                      !portionAvailable
+                                        ? 'text-gray-400'
+                                        : isPortionSel
+                                        ? 'text-[#B69A62]'
+                                        : 'text-gray-500'
+                                    }`}
+                                  >
+                                    Rs. {portion.price.toLocaleString()}
+                                  </span>
+                                </button>
+                              );
+                            })}
 
-                          {currentSelected && (
-                            <button
-                              type="button"
-                              onClick={() => removeFilling(ing.id)}
-                              className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl cursor-pointer"
-                              title="Remove item"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+                            {currentSelected && (
+                              <button
+                                type="button"
+                                onClick={() => removeFilling(ing.id)}
+                                className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl cursor-pointer"
+                                title="Remove item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
 
               <div className="flex justify-between pt-4">

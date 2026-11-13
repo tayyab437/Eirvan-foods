@@ -153,26 +153,28 @@ final class FirestoreService
         }
     }
 
-    public function incrementField(string $collection, string $docId, string $fieldPath, int $delta = 1): void
+    public function incrementField(string $collection, string $docId, string $fieldPath, int $delta = 1, bool $requireExists = true): void
     {
         $url = $this->baseUrl() . ':commit';
-        $payload = [
-            'writes' => [
-                [
-                    'transform' => [
-                        'document' => $this->docName($collection, $docId),
-                        'fieldTransforms' => [
-                            [
-                                'fieldPath' => $fieldPath,
-                                'increment' => ['integerValue' => (string) $delta],
-                            ],
-                        ],
+        $write = [
+            'transform' => [
+                'document' => $this->docName($collection, $docId),
+                'fieldTransforms' => [
+                    [
+                        'fieldPath' => $fieldPath,
+                        'increment' => ['integerValue' => (string) $delta],
                     ],
                 ],
             ],
         ];
+        if ($requireExists) {
+            $write['currentDocument'] = ['exists' => true];
+        }
 
-        $res = $this->request('POST', $url, $payload);
+        $res = $this->request('POST', $url, ['writes' => [$write]]);
+        if ($res['status'] === 404 || ($res['status'] === 400 && (($res['body']['error']['status'] ?? '') === 'FAILED_PRECONDITION'))) {
+            throw new RuntimeException('DOCUMENT_NOT_FOUND');
+        }
         if ($res['status'] >= 400) {
             throw new RuntimeException('Firestore increment error: HTTP ' . $res['status']);
         }
@@ -187,7 +189,8 @@ final class FirestoreService
         ?string $orderByField = null,
         string $direction = 'DESCENDING',
         int $limit = 100,
-        int $offset = 0
+        int $offset = 0,
+        ?array $startAfterValues = null
     ): array {
         $structuredQuery = [
             'from' => [['collectionId' => $collection]],
@@ -224,8 +227,15 @@ final class FirestoreService
             ];
         }
 
+        if ($startAfterValues !== null && !empty($startAfterValues)) {
+            $structuredQuery['startAt'] = [
+                'values' => $startAfterValues,
+                'before' => false,
+            ];
+        }
+
         $url = $this->baseUrl() . ':runQuery';
-        $res = $this->request('POST', $url, ['structuredQuery' => $structuredQuery]);
+        $res = $this->request('POST', $url, ['structuredQuery' => $structuredQuery], false, 0, true);
 
         if ($res['status'] >= 400) {
             throw new RuntimeException('Firestore query error: HTTP ' . $res['status']);
@@ -241,10 +251,81 @@ final class FirestoreService
         return $results;
     }
 
+    /**
+     * Cursor-paginated structured query ordered by a unique or monotonic field.
+     */
+    public function runQueryPaginated(
+        string $collection,
+        array $whereEqual = [],
+        string $orderByField = 'createdAt',
+        string $direction = 'DESCENDING',
+        int $limit = 100,
+        ?string $pageToken = null
+    ): array {
+        $cappedLimit = max(1, min(300, $limit));
+        $startAfterValues = null;
+
+        if ($pageToken !== null && $pageToken !== '') {
+            $raw = base64_decode(strtr($pageToken, '-_', '+/'), true);
+            $decoded = is_string($raw) ? json_decode($raw, true) : null;
+            if (is_array($decoded) && array_key_exists('v', $decoded)) {
+                $startAfterValues = [$this->encodeValue($decoded['v'])];
+            }
+        }
+
+        $rows = $this->runQuery(
+            $collection,
+            $whereEqual,
+            $orderByField,
+            $direction,
+            $cappedLimit + 1,
+            0,
+            $startAfterValues
+        );
+
+        $hasMore = count($rows) > $cappedLimit;
+        if ($hasMore) {
+            $rows = array_slice($rows, 0, $cappedLimit);
+        }
+
+        $nextToken = null;
+        if ($hasMore && !empty($rows)) {
+            $last = $rows[count($rows) - 1];
+            if (array_key_exists($orderByField, $last)) {
+                $payload = json_encode(['v' => $last[$orderByField]], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if (is_string($payload)) {
+                    $nextToken = rtrim(strtr(base64_encode($payload), '+/', '-_'), '=');
+                }
+            }
+        }
+
+        return [
+            'documents' => $rows,
+            'nextPageToken' => $nextToken,
+            'hasMore' => $hasMore,
+        ];
+    }
+
+    /**
+     * Reference-ordered batch query using document __name__ cursor for full-collection aggregation.
+     */
+    public function runQueryByDocIdBatch(
+        string $collection,
+        array $whereEqual = [],
+        int $limit = 200,
+        ?string $afterDocId = null
+    ): array {
+        $startAfter = null;
+        if ($afterDocId !== null && $afterDocId !== '') {
+            $startAfter = [['referenceValue' => $this->docName($collection, $afterDocId)]];
+        }
+        return $this->runQuery($collection, $whereEqual, '__name__', 'ASCENDING', $limit, 0, $startAfter);
+    }
+
     public function beginTransaction(): string
     {
         $url = $this->baseUrl() . ':beginTransaction';
-        $res = $this->request('POST', $url, ['options' => ['readWrite' => new \stdClass()]]);
+        $res = $this->request('POST', $url, ['options' => ['readWrite' => new \stdClass()]], false, 0, true);
         if ($res['status'] >= 400 || empty($res['body']['transaction'])) {
             throw new RuntimeException('Failed to begin Firestore transaction.');
         }
@@ -255,7 +336,11 @@ final class FirestoreService
     public function rollbackTransaction(string $transaction): void
     {
         $url = $this->baseUrl() . ':rollback';
-        @$this->request('POST', $url, ['transaction' => $transaction]);
+        try {
+            $this->request('POST', $url, ['transaction' => $transaction], false, 0, true);
+        } catch (\Throwable) {
+            // Best-effort rollback
+        }
     }
 
     public function commitTransaction(string $transaction, array $writes): array
@@ -344,9 +429,9 @@ final class FirestoreService
         return $write;
     }
 
-    public function buildIncrementWrite(string $collection, string $docId, string $fieldPath, int $delta = 1): array
+    public function buildIncrementWrite(string $collection, string $docId, string $fieldPath, int $delta = 1, bool $requireExists = true): array
     {
-        return [
+        $write = [
             'transform' => [
                 'document' => $this->docName($collection, $docId),
                 'fieldTransforms' => [
@@ -357,9 +442,13 @@ final class FirestoreService
                 ],
             ],
         ];
+        if ($requireExists) {
+            $write['currentDocument'] = ['exists' => true];
+        }
+        return $write;
     }
 
-    public function encodeFields(array $data): array
+    public function encodeFields(array $data): array|\stdClass
     {
         $fields = [];
         foreach ($data as $key => $val) {
@@ -368,7 +457,7 @@ final class FirestoreService
             }
             $fields[(string) $key] = $this->encodeValue($val);
         }
-        return $fields;
+        return empty($fields) ? new \stdClass() : $fields;
     }
 
     public function encodeValue(mixed $val): array
@@ -387,6 +476,13 @@ final class FirestoreService
         }
         if (is_string($val)) {
             return ['stringValue' => $val];
+        }
+        if ($val instanceof \stdClass) {
+            return [
+                'mapValue' => [
+                    'fields' => $this->encodeFields((array) $val),
+                ],
+            ];
         }
         if (is_array($val)) {
             if (array_is_list($val)) {
@@ -459,8 +555,16 @@ final class FirestoreService
         return null;
     }
 
-    private function request(string $method, string $url, ?array $body = null, bool $retriedAuth = false): array
-    {
+    private function request(
+        string $method,
+        string $url,
+        ?array $body = null,
+        bool $retriedAuth = false,
+        int $transientAttempt = 0,
+        bool $allowNetworkRetry = false
+    ): array {
+        $maxTransientRetries = 2;
+        $isIdempotent = strtoupper($method) === 'GET' || $allowNetworkRetry;
         $token = $this->jwtService->getAccessToken($retriedAuth);
 
         $ch = curl_init($url);
@@ -493,12 +597,29 @@ final class FirestoreService
         curl_close($ch);
 
         if ($raw === false) {
+            if ($isIdempotent && $transientAttempt < $maxTransientRetries) {
+                $delayUs = (150000 * (2 ** $transientAttempt)) + random_int(10000, 60000);
+                $this->logger->warning('firestore_network_retry', ['method' => $method, 'attempt' => $transientAttempt + 1]);
+                usleep($delayUs);
+                return $this->request($method, $url, $body, $retriedAuth, $transientAttempt + 1, $allowNetworkRetry);
+            }
             $this->logger->error('firestore_curl_failure', ['error' => $curlError, 'method' => $method]);
             throw new RuntimeException('Firestore network request failed.');
         }
 
         if ($status === 401 && !$retriedAuth) {
-            return $this->request($method, $url, $body, true);
+            return $this->request($method, $url, $body, true, $transientAttempt, $allowNetworkRetry);
+        }
+
+        if (in_array($status, [429, 503], true) && $transientAttempt < $maxTransientRetries) {
+            $delayUs = (180000 * (2 ** $transientAttempt)) + random_int(15000, 75000);
+            $this->logger->warning('firestore_transient_retry', [
+                'status' => $status,
+                'method' => $method,
+                'attempt' => $transientAttempt + 1,
+            ]);
+            usleep($delayUs);
+            return $this->request($method, $url, $body, $retriedAuth, $transientAttempt + 1, $allowNetworkRetry);
         }
 
         $decoded = json_decode((string) $raw, true);

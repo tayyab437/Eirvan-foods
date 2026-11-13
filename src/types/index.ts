@@ -11,6 +11,8 @@ export interface ShahiMixIngredient {
   urduName?: string;
   image: string;
   inStock: boolean;
+  inventoryPolicy?: 'tracked' | 'unlimited';
+  stockGrams?: number;
   portions: ShahiMixPortion[];
   nutritionFacts?: {
     calories: number; // per 100g
@@ -28,6 +30,9 @@ export interface ShahiMixBox {
   basePrice: number; // PKR
   image: string;
   description: string;
+  inStock?: boolean;
+  inventoryPolicy?: 'tracked' | 'unlimited';
+  stock?: number;
 }
 
 export interface UnboxingReview {
@@ -184,6 +189,7 @@ export interface Coupon {
   isActive: boolean;
   expiryDate?: string;
   usageCount: number;
+  usageLimit?: number;
 }
 
 export interface CustomerReview {

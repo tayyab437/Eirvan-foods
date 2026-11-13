@@ -32,7 +32,7 @@ export const AiSommelierChat: React.FC = () => {
       id: 'init-1',
       role: 'assistant',
       content: `Assalam-o-Alaikum. I am Hakim Daniyal, Chief Nutritionist & Sourcing Sommelier at Eirvan Foods® (Natural Goodness • Better Tomorrow).\n\nHow may I guide your nutrition today? I can advise on Kashmiri Mamra almond oil concentrations, memory-boosting blends for students, diabetic-friendly combinations, or authentic stone-ground superfood formulations.`,
-      modelUsed: 'gemini-3.8-flash',
+      modelUsed: 'gemini-2.5-flash',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -116,14 +116,14 @@ export const AiSommelierChat: React.FC = () => {
     let modelTag = '';
 
     if (newRole === 'nutritionist') {
-      intro = `Switched to **Hakim Daniyal** (General Nutrition & Mountain Sourcing). Powered by **gemini-3.8-flash**. Ask about traditional uses, morning vitality, or Kashmiri Mamra almond oil content.`;
-      modelTag = 'gemini-3.8-flash';
+      intro = `Switched to **Hakim Daniyal** (General Nutrition & Mountain Sourcing). Powered by **gemini-2.5-flash**. Ask about traditional uses, morning vitality, or Kashmiri Mamra almond oil content.`;
+      modelTag = 'gemini-2.5-flash';
     } else if (newRole === 'dietary_analyst') {
-      intro = `Switched to **Dr. Ayesha** (Clinical & Dietary Specialist). Powered by **gemini-4-argon** for complex nutritional analysis. Ask about glycemic index, fatty acid ratios, or gestational wellness.`;
-      modelTag = 'gemini-4-argon';
+      intro = `Switched to **Dr. Ayesha** (Clinical & Dietary Specialist). Powered by **gemini-2.5-pro** for complex nutritional analysis. Ask about glycemic index, fatty acid ratios, or gestational wellness.`;
+      modelTag = 'gemini-2.5-pro';
     } else {
-      intro = `Switched to **Eirvan Concierge** (Fast Shopping Assistant). Powered by **gemini-3.1-flash-lite** for instant answers on Pakistani shipping rates, courier tracking, and gift boxes.`;
-      modelTag = 'gemini-3.1-flash-lite';
+      intro = `Switched to **Eirvan Concierge** (Fast Shopping Assistant). Powered by **gemini-2.5-flash-lite** for instant answers on Pakistani shipping rates, courier tracking, and gift boxes.`;
+      modelTag = 'gemini-2.5-flash-lite';
     }
 
     setMessages((prev) => [
@@ -144,7 +144,7 @@ export const AiSommelierChat: React.FC = () => {
         id: 'init-1',
         role: 'assistant',
         content: `Assalam-o-Alaikum. Conversation history has been reset. How may I assist your healthy lifestyle today?`,
-        modelUsed: 'gemini-3.8-flash',
+        modelUsed: 'gemini-2.5-flash',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ]);
@@ -223,7 +223,7 @@ export const AiSommelierChat: React.FC = () => {
               }`}
             >
               <HeartPulse className="w-3 h-3 text-[#C6842D]" />
-              <span>Dr. Ayesha (Argon)</span>
+              <span>Dr. Ayesha (Pro)</span>
             </button>
 
             <button

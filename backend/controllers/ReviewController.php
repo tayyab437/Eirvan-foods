@@ -39,17 +39,23 @@ final class ReviewController
             return ['status' => 404, 'body' => ['success' => false, 'error' => 'Referenced product not found.']];
         }
 
-        // Verify purchase strictly against real order records (never trust client flag!)
+        // Verify purchase strictly against Delivered real order records (never trust client flag or pending/cancelled orders)
         $verifiedPurchase = false;
         $orderNumber = strtoupper(RequestValidator::cleanString($input['orderNumber'] ?? '', 32));
         $phone = RequestValidator::normalizePhone((string) ($input['phone'] ?? ''));
 
-        if ($orderNumber !== '' && $phone !== '') {
+        if ($orderNumber !== '' && RequestValidator::isValidPakistaniMobile($phone)) {
             $orders = $this->firestore->runQuery('orders', ['orderNumber' => $orderNumber], null, 'DESCENDING', 1);
             if (!empty($orders)) {
                 $ord = $orders[0];
-                $ordPhone = RequestValidator::normalizePhone((string) ($ord['customerPhone'] ?? ''));
-                if ($ordPhone !== '' && hash_equals($ordPhone, $phone)) {
+                $ordPhone = (string) ($ord['normalizedPhone'] ?? '');
+                if ($ordPhone === '') {
+                    $ordPhone = RequestValidator::normalizePhone((string) ($ord['customerPhone'] ?? ''));
+                } else {
+                    $ordPhone = RequestValidator::normalizePhone($ordPhone);
+                }
+                $isDelivered = ((string) ($ord['orderStatus'] ?? '')) === 'Delivered';
+                if ($isDelivered && $ordPhone !== '' && hash_equals($ordPhone, $phone)) {
                     foreach ((array) ($ord['items'] ?? []) as $item) {
                         if (is_array($item) && (string) ($item['productId'] ?? '') === $productId) {
                             $verifiedPurchase = true;
@@ -86,16 +92,32 @@ final class ReviewController
         ];
     }
 
-    public function listAdmin(): array
+    public function listAdmin(array $query = []): array
     {
         $this->auth->requireAdmin();
-        $res = $this->firestore->listCollection('reviews', 300);
+        $limit = max(1, min(300, (int) ($query['limit'] ?? 150)));
+        $pageToken = isset($query['pageToken']) ? trim((string) $query['pageToken']) : null;
+        if ($pageToken === '') {
+            $pageToken = null;
+        }
+
+        $res = $this->firestore->listCollection('reviews', $limit, $pageToken);
         $items = array_map(static function (array $r): array {
             unset($r['_docId'], $r['_updateTime']);
             return $r;
         }, $res['documents']);
 
-        return ['status' => 200, 'body' => ['success' => true, 'reviews' => $items]];
+        $nextPageToken = $res['nextPageToken'] ?? null;
+
+        return [
+            'status' => 200,
+            'body' => [
+                'success' => true,
+                'reviews' => $items,
+                'nextPageToken' => $nextPageToken,
+                'hasMore' => $nextPageToken !== null && $nextPageToken !== '',
+            ],
+        ];
     }
 
     public function moderateAdmin(string $reviewId, array $input): array
@@ -140,17 +162,40 @@ final class ReviewController
         if (!RequestValidator::isValidDocId($productId)) {
             return;
         }
-        $approved = $this->firestore->runQuery('reviews', [
-            'productId' => $productId,
-            'status' => 'approved',
-        ], null, 'DESCENDING', 300);
 
-        $count = count($approved);
-        $avg = 5.0;
-        if ($count > 0) {
-            $sum = array_reduce($approved, static fn(float $acc, array $r): float => $acc + (float) ($r['rating'] ?? 5), 0.0);
-            $avg = round($sum / $count, 1);
+        $batchSize = 200;
+        $afterDocId = null;
+        $count = 0;
+        $sum = 0.0;
+
+        // Iterate across all approved review batches without capping at 300 records
+        for ($page = 0; $page < 50; $page++) {
+            $batch = $this->firestore->runQueryByDocIdBatch('reviews', [
+                'productId' => $productId,
+                'status' => 'approved',
+            ], $batchSize, $afterDocId);
+
+            if (empty($batch)) {
+                break;
+            }
+
+            foreach ($batch as $r) {
+                $count++;
+                $sum += (float) ($r['rating'] ?? 5);
+            }
+
+            if (count($batch) < $batchSize) {
+                break;
+            }
+
+            $last = $batch[count($batch) - 1];
+            $afterDocId = (string) ($last['_docId'] ?? $last['id'] ?? '');
+            if ($afterDocId === '') {
+                break;
+            }
         }
+
+        $avg = $count > 0 ? round($sum / $count, 1) : 5.0;
 
         try {
             $this->firestore->patchDocument('products', $productId, [

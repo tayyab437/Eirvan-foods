@@ -218,6 +218,34 @@
         "internalNotes": {
           "type": "array",
           "description": "Administrative notes"
+        },
+        "normalizedPhone": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Canonical 03XXXXXXXXX Pakistani phone number for lookup matching"
+        },
+        "paymentReference": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Bank transfer / Raast reference provided by customer"
+        },
+        "trackingTokenHash": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "SHA-256 hash of customer tracking token"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Client checkout idempotency key"
+        },
+        "stockRestored": {
+          "type": "boolean",
+          "description": "Whether inventory has been restored upon Cancelled/Returned transition"
+        },
+        "customStockUsage": {
+          "type": "object",
+          "description": "Recorded tracked box units and ingredient grams deducted on creation"
         }
       },
       "required": ["orderNumber", "customerName", "customerPhone", "city", "address", "items", "totalAmount", "paymentMethod", "orderStatus"]
@@ -310,6 +338,10 @@
         "usageCount": {
           "type": "number",
           "description": "Total times redeemed"
+        },
+        "usageLimit": {
+          "type": "number",
+          "description": "Optional maximum redemptions before expiry"
         }
       },
       "required": ["code", "discountType", "discountValue", "minOrderAmount", "isActive"]
@@ -406,20 +438,22 @@
     },
     "ShahiMixBox": {
       "title": "ShahiMixBox",
-      "description": "Custom Shahi Mix tin / box container specification",
+      "description": "Custom Shahi Mix box container specification",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
         "name": { "type": "string", "maxLength": 120 },
-        "urduName": { "type": "string", "maxLength": 120 },
-        "weight": { "type": "string", "maxLength": 40 },
-        "weightGrams": { "type": "number" },
+        "description": { "type": "string", "maxLength": 500 },
+        "dimensions": { "type": "string", "maxLength": 120 },
+        "capacity": { "type": "number" },
         "basePrice": { "type": "number" },
-        "maxItems": { "type": "number" },
-        "description": { "type": "string", "maxLength": 300 },
-        "image": { "type": "string", "maxLength": 500 }
+        "image": { "type": "string", "maxLength": 500 },
+        "tag": { "type": "string", "maxLength": 60 },
+        "inStock": { "type": "boolean" },
+        "inventoryPolicy": { "type": "string", "enum": ["tracked", "unlimited"] },
+        "stock": { "type": "number" }
       },
-      "required": ["id", "name", "weightGrams", "basePrice", "maxItems"]
+      "required": ["id", "name", "capacity", "basePrice"]
     },
     "ShahiMixIngredient": {
       "title": "ShahiMixIngredient",
@@ -430,13 +464,15 @@
         "name": { "type": "string", "maxLength": 120 },
         "urduName": { "type": "string", "maxLength": 120 },
         "origin": { "type": "string", "maxLength": 120 },
-        "category": { "type": "string", "enum": ["nut", "berry", "seed", "spice"] },
-        "pricePer100g": { "type": "number" },
-        "stockGrams": { "type": "number" },
-        "benefits": { "type": "string", "maxLength": 200 },
-        "image": { "type": "string", "maxLength": 500 }
+        "category": { "type": "string", "enum": ["Nuts", "Berries & Dates", "Seeds", "Premium Specials"] },
+        "image": { "type": "string", "maxLength": 500 },
+        "benefits": { "type": "array" },
+        "portions": { "type": "array" },
+        "inStock": { "type": "boolean" },
+        "inventoryPolicy": { "type": "string", "enum": ["tracked", "unlimited"] },
+        "stockGrams": { "type": "number" }
       },
-      "required": ["id", "name", "category", "pricePer100g"]
+      "required": ["id", "name", "category", "portions", "inStock"]
     },
     "AdminUser": {
       "title": "AdminUser",
@@ -445,7 +481,7 @@
       "properties": {
         "uid": { "type": "string", "maxLength": 128 },
         "email": { "type": "string", "maxLength": 120 },
-        "role": { "type": "string", "enum": ["admin", "superadmin"] },
+        "role": { "type": "string", "enum": ["admin", "super_admin", "superadmin"] },
         "active": { "type": "boolean" }
       },
       "required": ["uid", "role", "active"]

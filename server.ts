@@ -2,6 +2,8 @@ import express, { Request, Response } from 'express';
 import compression from 'compression';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
@@ -10,6 +12,13 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const firebaseAppletConfig = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, 'firebase-applet-config.json'), 'utf8')
+) as { projectId: string; firestoreDatabaseId?: string };
+
+const FIREBASE_PROJECT_ID = firebaseAppletConfig.projectId;
+const FIRESTORE_DATABASE_ID = firebaseAppletConfig.firestoreDatabaseId || '(default)';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -47,9 +56,7 @@ app.get('/.well-known/ard.json', (_req, res) => {
   res.sendFile(path.resolve(__dirname, 'public', '.well-known', 'ard.json'));
 });
 
-
-
-// Initialize GoogleGenAI SDK
+// Initialize GoogleGenAI SDK (Local Dev Preview AI Endpoints Only)
 const getAiClient = () => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -64,6 +71,157 @@ const getAiClient = () => {
     },
   });
 };
+
+// Cached Google x509 public certs for Firebase ID token verification in local Node dev preview
+let cachedCerts: { keys: Record<string, string>; expiresAt: number } | null = null;
+
+async function getFirebasePublicCerts(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (cachedCerts && cachedCerts.expiresAt > now) {
+    return cachedCerts.keys;
+  }
+
+  const resp = await fetch(
+    'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+  );
+  if (!resp.ok) {
+    throw new Error(`Unable to fetch Firebase verification certificates (${resp.status}).`);
+  }
+
+  const cacheControl = resp.headers.get('cache-control') || '';
+  const maxAgeMatch = cacheControl.match(/max-age=(\d+)/i);
+  const ttlSeconds = maxAgeMatch ? Math.max(300, Number(maxAgeMatch[1])) : 3600;
+  const keys = (await resp.json()) as Record<string, string>;
+
+  cachedCerts = {
+    keys,
+    expiresAt: now + ttlSeconds * 1000,
+  };
+  return keys;
+}
+
+function base64UrlDecode(segment: string): Buffer {
+  const normalized = segment.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+  return Buffer.from(padded, 'base64');
+}
+
+async function verifyAdminBearerToken(authHeader?: string): Promise<{ uid: string; email?: string }> {
+  const match = authHeader?.match(/^\s*Bearer\s+([A-Za-z0-9\-_\.]+)\s*$/);
+  if (!match) {
+    const err = new Error('Authentication required.');
+    (err as any).statusCode = 401;
+    throw err;
+  }
+
+  const token = match[1];
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    const err = new Error('Malformed bearer token.');
+    (err as any).statusCode = 401;
+    throw err;
+  }
+
+  const [headerB64, payloadB64, signatureB64] = parts;
+  let header: { alg?: string; kid?: string };
+  let payload: {
+    iss?: string;
+    aud?: string;
+    sub?: string;
+    exp?: number;
+    iat?: number;
+    email?: string;
+    email_verified?: boolean;
+  };
+
+  try {
+    header = JSON.parse(base64UrlDecode(headerB64).toString('utf8'));
+    payload = JSON.parse(base64UrlDecode(payloadB64).toString('utf8'));
+  } catch {
+    const err = new Error('Invalid token encoding.');
+    (err as any).statusCode = 401;
+    throw err;
+  }
+
+  if (header.alg !== 'RS256' || !header.kid) {
+    const err = new Error('Unsupported token algorithm or missing key ID.');
+    (err as any).statusCode = 401;
+    throw err;
+  }
+
+  const certs = await getFirebasePublicCerts();
+  const certPem = certs[header.kid];
+  if (!certPem) {
+    const err = new Error('Unknown signing key ID.');
+    (err as any).statusCode = 401;
+    throw err;
+  }
+
+  const verifier = crypto.createVerify('RSA-SHA256');
+  verifier.update(`${headerB64}.${payloadB64}`);
+  verifier.end();
+  const sigBuf = base64UrlDecode(signatureB64);
+  if (!verifier.verify(certPem, sigBuf)) {
+    const err = new Error('Invalid token signature.');
+    (err as any).statusCode = 401;
+    throw err;
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const expectedIssuer = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
+  if (
+    payload.iss !== expectedIssuer ||
+    payload.aud !== FIREBASE_PROJECT_ID ||
+    !payload.sub ||
+    typeof payload.exp !== 'number' ||
+    payload.exp <= nowSec ||
+    typeof payload.iat !== 'number' ||
+    payload.iat > nowSec + 300
+  ) {
+    const err = new Error('Token claims invalid or expired.');
+    (err as any).statusCode = 401;
+    throw err;
+  }
+
+  if (payload.email_verified !== true) {
+    const err = new Error('Verified email required for administrator access.');
+    (err as any).statusCode = 403;
+    throw err;
+  }
+
+  // Verify /admins/{uid} role and active flag in Firestore using caller's verified ID token
+  const adminUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    FIREBASE_PROJECT_ID
+  )}/databases/${encodeURIComponent(FIRESTORE_DATABASE_ID)}/documents/admins/${encodeURIComponent(
+    payload.sub
+  )}`;
+  const adminResp = await fetch(adminUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!adminResp.ok) {
+    const err = new Error('Administrator authorization required.');
+    (err as any).statusCode = 403;
+    throw err;
+  }
+
+  const adminDoc = (await adminResp.json()) as {
+    fields?: {
+      active?: { booleanValue?: boolean };
+      role?: { stringValue?: string };
+    };
+  };
+
+  const isActive = adminDoc.fields?.active?.booleanValue === true;
+  const role = adminDoc.fields?.role?.stringValue || '';
+  if (!isActive || !['admin', 'super_admin', 'superadmin'].includes(role)) {
+    const err = new Error('Administrator authorization required.');
+    (err as any).statusCode = 403;
+    throw err;
+  }
+
+  return { uid: payload.sub, email: payload.email };
+}
 
 // System instructions for specialized roles
 const SYSTEM_INSTRUCTIONS = {
@@ -87,8 +245,8 @@ You provide rapid, crisp, direct answers regarding:
 Keep answers under 3 concise sentences with clear bullet points when needed.`,
 };
 
-// Chat endpoint supporting multi-turn conversation and model selection
-app.post('/api/chat', async (req: Request, res: Response) => {
+// Local Dev Preview Only — in IONOS production, /api/* routes are handled by public_html/api/index.php -> backend/
+const handleChatRequest = async (req: Request, res: Response) => {
   try {
     const { messages, role = 'nutritionist' } = req.body;
 
@@ -98,22 +256,16 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
     const ai = getAiClient();
 
-    // Model selection based on requirements:
-    // - Complex tasks: gemini-4-argon
-    // - General tasks: gemini-3.8-flash
-    // - Fast tasks: gemini-3.1-flash-lite
-    let model = 'gemini-3.8-flash';
+    let model = 'gemini-2.5-flash';
     if (role === 'dietary_analyst') {
-      model = 'gemini-4-argon';
+      model = 'gemini-2.5-pro';
     } else if (role === 'quick_assistant') {
-      model = 'gemini-3.1-flash-lite';
-    } else {
-      model = 'gemini-3.8-flash';
+      model = 'gemini-2.5-flash-lite';
     }
 
-    const systemInstruction = SYSTEM_INSTRUCTIONS[role as keyof typeof SYSTEM_INSTRUCTIONS] || SYSTEM_INSTRUCTIONS.nutritionist;
+    const systemInstruction =
+      SYSTEM_INSTRUCTIONS[role as keyof typeof SYSTEM_INSTRUCTIONS] || SYSTEM_INSTRUCTIONS.nutritionist;
 
-    // Format message history for generateContent
     const contents = messages.map((m: { role: 'user' | 'model' | 'assistant'; content: string }) => ({
       role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
       parts: [{ text: m.content }],
@@ -130,114 +282,118 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     const reply = response.text || 'I apologize, but I could not formulate a response at this moment.';
     return res.json({ reply, modelUsed: model });
   } catch (error: any) {
-    console.error('Error in /api/chat:', error);
+    console.error('Error in dev /api/chat:', error);
     return res.status(500).json({
       error: error?.message || 'Failed to generate response from Gemini.',
     });
   }
-});
+};
 
-// Image generation endpoint with resolution affordance (1K, 2K, 4K)
-app.post('/api/generate-image', async (req: Request, res: Response) => {
+app.post('/api/chat', handleChatRequest);
+app.post('/api/ai/chat', handleChatRequest);
+
+// Local Dev Preview Only — Admin-authenticated AI image generation endpoint
+const handleGenerateImageRequest = async (req: Request, res: Response) => {
+  try {
+    await verifyAdminBearerToken(req.headers.authorization);
+  } catch (authErr: any) {
+    const status = typeof authErr?.statusCode === 'number' ? authErr.statusCode : 401;
+    return res.status(status).json({
+      success: false,
+      error: authErr?.message || 'Administrator authorization required.',
+    });
+  }
+
   try {
     const {
       prompt,
-      imageSize = '1K', // 1K, 2K, or 4K
+      imageSize = '1K',
       aspectRatio = '1:1',
     } = req.body;
 
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required.' });
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return res.status(400).json({ success: false, error: 'Prompt is required.' });
     }
 
     const ai = getAiClient();
-
     const validSizes = ['1K', '2K', '4K'];
     const chosenSize = validSizes.includes(imageSize) ? imageSize : '1K';
+    const validRatios = ['1:1', '4:3', '16:9'];
+    const chosenRatio = validRatios.includes(aspectRatio) ? aspectRatio : '1:1';
 
-    const enhancedPrompt = `Ultra-premium commercial product photography of artisanal luxury dry fruits and nuts packaging for Pakistani brand 'Eirvan Foods'. ${prompt}. Photorealistic, 8k resolution, elegant studio lighting, natural wooden trays, brass accents, vibrant natural colors, appetizing texture, no artificial look.`;
+    const enhancedPrompt = `Ultra-premium commercial product photography of artisanal luxury dry fruits and nuts packaging for Pakistani brand 'Eirvan Foods'. ${prompt.trim()}. Photorealistic, studio lighting, natural wooden trays, brass accents, vibrant natural colors, appetizing texture.`;
 
-    const candidateModels = ['gemini-3-pro-image', 'gemini-nano-banana-2.1', 'gemini-3.1-flash-lite-image'];
-    let lastError: any = null;
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [{ text: enhancedPrompt }],
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: chosenRatio as '1:1' | '4:3' | '16:9',
+        },
+      },
+    });
+
     let imageUrl: string | null = null;
     let descriptionText = '';
 
-    for (const modelName of candidateModels) {
-      try {
-        const config: any = {
-          imageConfig: {
-            aspectRatio: aspectRatio as any,
-          },
-        };
-
-        if (modelName !== 'gemini-3.1-flash-lite-image') {
-          config.imageConfig.imageSize = chosenSize;
-        }
-
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: {
-            parts: [
-              {
-                text: enhancedPrompt,
-              },
-            ],
-          },
-          config,
-        });
-
-        for (const part of response.candidates?.[0]?.content?.parts ?? []) {
-          if (part.inlineData?.data) {
-            const mime = part.inlineData.mimeType || 'image/png';
-            imageUrl = `data:${mime};base64,${part.inlineData.data}`;
-          } else if (part.text) {
-            descriptionText += part.text;
-          }
-        }
-
-        if (imageUrl) {
-          break;
-        }
-      } catch (err: any) {
-        console.warn(`Model ${modelName} image generation failed:`, err?.message);
-        lastError = err;
+    for (const part of response.candidates?.[0]?.content?.parts ?? []) {
+      if (part.inlineData?.data) {
+        const mime = part.inlineData.mimeType || 'image/png';
+        imageUrl = `data:${mime};base64,${part.inlineData.data}`;
+      } else if (part.text) {
+        descriptionText += part.text;
       }
     }
 
     if (!imageUrl) {
-      const isQuota = lastError?.message?.includes('429') || lastError?.message?.includes('RESOURCE_EXHAUSTED') || lastError?.message?.includes('Quota exceeded');
-      return res.status(isQuota ? 429 : 500).json({
-        error: isQuota
-          ? 'Free Tier Image Quota Exceeded. Image models require a paid billing API key or selection of curated studio presets.'
-          : lastError?.message || 'No image was returned by Gemini.',
-        isQuotaExceeded: isQuota,
+      return res.status(500).json({
+        success: false,
+        error: 'No image was returned by Gemini.',
         details: descriptionText,
       });
     }
 
     return res.json({
+      success: true,
       imageUrl,
       imageSize: chosenSize,
-      aspectRatio,
+      aspectRatio: chosenRatio,
       description: descriptionText,
     });
   } catch (error: any) {
-    console.error('Error in /api/generate-image:', error);
-    const isQuota = error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED') || error?.message?.includes('Quota exceeded');
+    console.error('Error in dev /api/ai/generate-image:', error);
+    const isQuota =
+      error?.message?.includes('429') ||
+      error?.message?.includes('RESOURCE_EXHAUSTED') ||
+      error?.message?.includes('Quota exceeded');
     return res.status(isQuota ? 429 : 500).json({
+      success: false,
       error: isQuota
         ? 'Free Tier Image Quota Exceeded. Image models require a paid billing API key or selection of curated studio presets.'
         : error?.message || 'Failed to generate image.',
       isQuotaExceeded: isQuota,
     });
   }
+};
+
+app.post('/api/generate-image', handleGenerateImageRequest);
+app.post('/api/ai/generate-image', handleGenerateImageRequest);
+
+// Catch-all for unmounted PHP backend routes during local Vite/Node dev preview
+app.all('/api/*', (_req: Request, res: Response) => {
+  res.status(501).json({
+    success: false,
+    error: 'PHP backend endpoint is not mounted in Vite dev preview. Deploy to IONOS Apache/PHP or test via Apache+PHP for full /api/* routes.',
+  });
 });
 
-// Setup Vite or static serving
+// Setup Vite dev middleware or static serving (Node dev preview only)
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
-  const httpServer = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Eirvan Foods platform running at http://0.0.0.0:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Eirvan Foods local preview server running at http://0.0.0.0:${PORT}`);
   });
 
   if (!isProd) {
@@ -250,17 +406,15 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Optimized caching for immutable hashed assets
     app.use('/assets', express.static(path.resolve(__dirname, 'dist/assets'), {
       maxAge: '1y',
       immutable: true,
-      index: false
+      index: false,
     }));
 
-    // Standard static serving for other files (index.html, manifest, icons, robots)
     app.use(express.static(path.resolve(__dirname, 'dist'), {
-      maxAge: '1h', // Short cache for root files to allow updates
-      index: false
+      maxAge: '1h',
+      index: false,
     }));
 
     app.get('*', (_req, res) => {

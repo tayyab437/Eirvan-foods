@@ -59,6 +59,9 @@ export const INITIAL_SHAHI_MIX_BOXES: ShahiMixBox[] = [
     basePrice: 1950,
     image: '/assets/images/luxury_olive_gift_box_1794054054136.webp',
     description: 'Deep olive green rigid matte chest with warm cream typographic label and satin grosgrain ribbon.',
+    inStock: true,
+    inventoryPolicy: 'tracked',
+    stock: 50,
   },
   {
     id: 'box-pine',
@@ -67,6 +70,9 @@ export const INITIAL_SHAHI_MIX_BOXES: ShahiMixBox[] = [
     basePrice: 1850,
     image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=480&q=65&fm=webp',
     description: 'Natural seasoned pinewood with antique brass latch & fitted cradles.',
+    inStock: true,
+    inventoryPolicy: 'tracked',
+    stock: 50,
   },
   {
     id: 'box-velvet',
@@ -75,6 +81,9 @@ export const INITIAL_SHAHI_MIX_BOXES: ShahiMixBox[] = [
     basePrice: 2400,
     image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=480&q=65&fm=webp',
     description: 'Deep forest green velvet with gold zari border and clear acrylic protective lid.',
+    inStock: true,
+    inventoryPolicy: 'tracked',
+    stock: 50,
   },
 ];
 
@@ -84,6 +93,8 @@ export const INITIAL_SHAHI_MIX_INGREDIENTS: ShahiMixIngredient[] = [
     name: 'Kashmiri Mamra Almonds (AAA)',
     image: 'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=400&q=80',
     inStock: true,
+    inventoryPolicy: 'tracked',
+    stockGrams: 10000,
     portions: [
       { id: 'mam-10', weight: '10g', weightGrams: 10, price: 90 },
       { id: 'mam-50', weight: '50g', weightGrams: 50, price: 450 },
@@ -99,6 +110,8 @@ export const INITIAL_SHAHI_MIX_INGREDIENTS: ShahiMixIngredient[] = [
     name: 'Balochistan Roasted Pine Nuts (Chilgoza)',
     image: 'https://images.unsplash.com/photo-1574545488652-2a97d6b6c387?auto=format&fit=crop&w=400&q=80',
     inStock: true,
+    inventoryPolicy: 'tracked',
+    stockGrams: 10000,
     portions: [
       { id: 'chi-10', weight: '10g', weightGrams: 10, price: 180 },
       { id: 'chi-50', weight: '50g', weightGrams: 50, price: 900 },
@@ -114,6 +127,8 @@ export const INITIAL_SHAHI_MIX_INGREDIENTS: ShahiMixIngredient[] = [
     name: 'Gilgit Snow White Walnuts',
     image: 'https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?auto=format&fit=crop&w=400&q=80',
     inStock: true,
+    inventoryPolicy: 'tracked',
+    stockGrams: 10000,
     portions: [
       { id: 'wal-10', weight: '10g', weightGrams: 10, price: 70 },
       { id: 'wal-50', weight: '50g', weightGrams: 50, price: 350 },
@@ -129,6 +144,8 @@ export const INITIAL_SHAHI_MIX_INGREDIENTS: ShahiMixIngredient[] = [
     name: 'Jumbo Roasted Cashews W180',
     image: 'https://images.unsplash.com/photo-1536591375315-1b83681403bf?auto=format&fit=crop&w=400&q=80',
     inStock: true,
+    inventoryPolicy: 'tracked',
+    stockGrams: 10000,
     portions: [
       { id: 'cas-10', weight: '10g', weightGrams: 10, price: 75 },
       { id: 'cas-50', weight: '50g', weightGrams: 50, price: 375 },
@@ -144,6 +161,8 @@ export const INITIAL_SHAHI_MIX_INGREDIENTS: ShahiMixIngredient[] = [
     name: 'Ajwa Al-Madinah VIP Dates',
     image: 'https://images.unsplash.com/photo-1598030304671-5aa1d6f21128?auto=format&fit=crop&w=400&q=80',
     inStock: true,
+    inventoryPolicy: 'tracked',
+    stockGrams: 10000,
     portions: [
       { id: 'ajw-10', weight: '10g', weightGrams: 10, price: 55 },
       { id: 'ajw-50', weight: '50g', weightGrams: 50, price: 275 },
@@ -159,6 +178,8 @@ export const INITIAL_SHAHI_MIX_INGREDIENTS: ShahiMixIngredient[] = [
     name: 'Peshawari Salted Roasted Pistachios',
     image: 'https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=400&q=80',
     inStock: true,
+    inventoryPolicy: 'tracked',
+    stockGrams: 10000,
     portions: [
       { id: 'pis-10', weight: '10g', weightGrams: 10, price: 95 },
       { id: 'pis-50', weight: '50g', weightGrams: 50, price: 475 },

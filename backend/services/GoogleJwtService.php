@@ -15,7 +15,8 @@ final class GoogleJwtService
     private string $cacheFile;
     private LoggerService $logger;
     private const TOKEN_URL = 'https://oauth2.googleapis.com/token';
-    private const SCOPE = 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/cloud-platform';
+    // Least-privilege OAuth2 scope for Firestore REST API operations (assign roles/datastore.user in GCP IAM)
+    private const SCOPE = 'https://www.googleapis.com/auth/datastore';
 
     public function __construct(string $serviceAccountPath, string $cacheDir, LoggerService $logger)
     {

@@ -44,13 +44,15 @@ ServerSignature Off
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
 
-    # Do not cache HTML SPA shell or service worker
-    <FilesMatch "^(index\.html|sw\.js|registerSW\.js|manifest\.webmanifest)$">
+    # Do not cache HTML SPA shell, manifest, or service worker/workbox bootstrap files
+    <FilesMatch "^(?:index\.html|sw\.js|registerSW\.js|workbox-[a-f0-9]{8,}\.js|manifest\.webmanifest)$">
         Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
     </FilesMatch>
 
-    # Long-term immutable cache for Vite hashed assets
-    <FilesMatch "\.(?:js|css|webp|png|jpg|svg|woff2)$">
+    # Long-term immutable cache for hashed static assets (excluding SW/workbox scripts)
+    <FilesMatch "^(?!(?:sw\.js|registerSW\.js|workbox-[a-f0-9]{8,}\.js)$).+\.(?:js|css|webp|png|jpg|jpeg|svg|woff2)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>
 </IfModule>

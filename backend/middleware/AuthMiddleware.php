@@ -55,7 +55,14 @@ final class AuthMiddleware
         if ($token === null) {
             return null;
         }
-        return $this->verifier->verifyIdToken($token);
+        try {
+            return $this->verifier->verifyIdToken($token);
+        } catch (\Throwable $e) {
+            $this->logger->warning('optional_auth_token_ignored', [
+                'reason' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 
     public function requireAuthenticated(): array
@@ -75,7 +82,7 @@ final class AuthMiddleware
 
     public function isUserAdmin(array $user): bool
     {
-        if (empty($user['uid']) || empty($user['emailVerified'])) {
+        if (empty($user['uid']) || empty($user['emailVerified']) || $user['emailVerified'] !== true) {
             return false;
         }
 
@@ -84,12 +91,14 @@ final class AuthMiddleware
             return false;
         }
 
-        if (isset($adminDoc['active']) && $adminDoc['active'] === false) {
+        // Strict active flag requirement: missing or non-true active is denied
+        if (($adminDoc['active'] ?? null) !== true) {
             return false;
         }
 
-        $role = (string) ($adminDoc['role'] ?? 'admin');
-        return in_array($role, ['admin', 'super_admin'], true);
+        // Canonical roles: 'admin', 'super_admin' (plus legacy 'superadmin' alias) — never default missing role
+        $role = $adminDoc['role'] ?? null;
+        return is_string($role) && in_array($role, ['admin', 'super_admin', 'superadmin'], true);
     }
 
     public function requireAdmin(): array

@@ -14,6 +14,7 @@ import {
 import confetti from 'canvas-confetti';
 
 import { useNavigate } from 'react-router-dom';
+import { isValidPakistaniPhone, normalizePakistaniPhone } from '../utils/phone';
 
 export const CheckoutView: React.FC = () => {
   const {
@@ -82,11 +83,6 @@ export const CheckoutView: React.FC = () => {
     );
   }
 
-  const validatePakistaniPhone = (phone: string) => {
-    const cleaned = phone.replace(/[^0-9]/g, '');
-    return cleaned.length === 11 && cleaned.startsWith('03');
-  };
-
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -96,9 +92,9 @@ export const CheckoutView: React.FC = () => {
       return;
     }
 
-    if (!validatePakistaniPhone(customerPhone)) {
+    if (!isValidPakistaniPhone(customerPhone)) {
       setErrorMessage(
-        'Please enter a valid Pakistani mobile number starting with 03 (e.g. 0300-1234567 or 03211234567).'
+        'Please enter a valid Pakistani mobile number (e.g. 0300-1234567 or +923001234567).'
       );
       return;
     }
@@ -130,7 +126,7 @@ export const CheckoutView: React.FC = () => {
       await placeOrder({
         idempotencyKey,
         customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
+        customerPhone: normalizePakistaniPhone(customerPhone),
         customerEmail: customerEmail.trim() || undefined,
         city,
         province,

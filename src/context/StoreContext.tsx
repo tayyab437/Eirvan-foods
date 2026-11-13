@@ -61,6 +61,22 @@ export interface AddReviewPayload {
   phone?: string;
 }
 
+export interface AdminPaginationState {
+  nextPageToken: string | null;
+  hasMore: boolean;
+  loadingMore: boolean;
+  refreshing: boolean;
+}
+
+const DEFAULT_PAGINATION: AdminPaginationState = {
+  nextPageToken: null,
+  hasMore: false,
+  loadingMore: false,
+  refreshing: false,
+};
+
+const ADMIN_PAGE_LIMIT = 50;
+
 interface StoreContextType {
   products: Product[];
   categoriesList: CategoryItem[];
@@ -80,6 +96,10 @@ interface StoreContextType {
   blogs: BlogPost[];
   coupons: Coupon[];
   wholesaleInquiries: WholesaleInquiry[];
+  ordersPagination: AdminPaginationState;
+  couponsPagination: AdminPaginationState;
+  reviewsPagination: AdminPaginationState;
+  wholesalePagination: AdminPaginationState;
   settings: StoreSettings;
   wishlist: string[];
   searchQuery: string;
@@ -143,14 +163,21 @@ interface StoreContextType {
   updateShahiMixIngredient: (ingredient: ShahiMixIngredient) => Promise<void>;
   deleteShahiMixIngredient: (ingredientId: string) => Promise<void>;
   backfillCatalogToFirestore: () => Promise<{ createdMissingDocs: number }>;
+  loadMoreOrders: () => Promise<void>;
+  loadMoreCoupons: () => Promise<void>;
+  loadMoreReviews: () => Promise<void>;
+  loadMoreWholesale: () => Promise<void>;
+  refreshAdminData: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 function isExpiredDate(expiryDate?: string): boolean {
   if (!expiryDate) return false;
-  const exp = new Date(`${expiryDate}T23:59:59`);
-  return !Number.isNaN(exp.getTime()) && Date.now() > exp.getTime();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) return true;
+  const exp = new Date(`${expiryDate}T23:59:59+05:00`);
+  if (Number.isNaN(exp.getTime())) return true;
+  return Date.now() > exp.getTime();
 }
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -166,6 +193,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [coupons, setCoupons] = useState<Coupon[]>(INITIAL_COUPONS);
   const [reviews, setReviews] = useState<CustomerReview[]>(INITIAL_REVIEWS);
   const [blogs] = useState<BlogPost[]>(INITIAL_BLOGS);
+
+  const [ordersPagination, setOrdersPagination] = useState<AdminPaginationState>(DEFAULT_PAGINATION);
+  const [couponsPagination, setCouponsPagination] = useState<AdminPaginationState>(DEFAULT_PAGINATION);
+  const [reviewsPagination, setReviewsPagination] = useState<AdminPaginationState>(DEFAULT_PAGINATION);
+  const [wholesalePagination, setWholesalePagination] = useState<AdminPaginationState>(DEFAULT_PAGINATION);
 
   const [isFirebaseSyncing, setIsFirebaseSyncing] = useState<boolean>(true);
   const [firebaseConnected, setFirebaseConnected] = useState<boolean>(true);
@@ -246,8 +278,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               const { doc, getDoc } = await import('firebase/firestore');
               const db = await getFirestoreDb();
               const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+              const adminData = adminSnap.exists() ? adminSnap.data() : null;
+              const role = typeof adminData?.role === 'string' ? adminData.role : '';
+              const isActive = adminData?.active === true;
               if (mounted) {
-                setIsAdminUser(Boolean(user.emailVerified && adminSnap.exists()));
+                setIsAdminUser(
+                  Boolean(
+                    user.emailVerified &&
+                      isActive &&
+                      ['admin', 'super_admin', 'superadmin'].includes(role)
+                  )
+                );
               }
             } catch {
               if (mounted) {
@@ -316,73 +357,224 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  // 3. Admin-Only Protected Data Sync (Orders, Coupons, All Reviews, Wholesale Inquiries)
+  // 3. Admin-Only Protected Paginated API Sync (Orders, Coupons, All Reviews, Wholesale Inquiries)
+  const fetchInitialAdminCollections = async (isMountedCheck: () => boolean = () => true) => {
+    setOrdersPagination((prev) => ({ ...prev, refreshing: true }));
+    setCouponsPagination((prev) => ({ ...prev, refreshing: true }));
+    setReviewsPagination((prev) => ({ ...prev, refreshing: true }));
+    setWholesalePagination((prev) => ({ ...prev, refreshing: true }));
+
+    try {
+      const [ordRes, coupRes, revRes, whlRes] = await Promise.allSettled([
+        apiRequest<{ orders: Order[]; nextPageToken?: string | null; hasMore?: boolean }>(
+          `/api/orders?limit=${ADMIN_PAGE_LIMIT}`,
+          { requireAuth: true }
+        ),
+        apiRequest<{ coupons: Coupon[]; nextPageToken?: string | null; hasMore?: boolean }>(
+          `/api/coupons?limit=${ADMIN_PAGE_LIMIT}`,
+          { requireAuth: true }
+        ),
+        apiRequest<{ reviews: CustomerReview[]; nextPageToken?: string | null; hasMore?: boolean }>(
+          `/api/reviews?limit=${ADMIN_PAGE_LIMIT}`,
+          { requireAuth: true }
+        ),
+        apiRequest<{ inquiries: WholesaleInquiry[]; nextPageToken?: string | null; hasMore?: boolean }>(
+          `/api/wholesale?limit=${ADMIN_PAGE_LIMIT}`,
+          { requireAuth: true }
+        ),
+      ]);
+
+      if (!isMountedCheck()) return;
+
+      if (ordRes.status === 'fulfilled' && Array.isArray(ordRes.value.orders)) {
+        setOrders(ordRes.value.orders);
+        setOrdersPagination({
+          nextPageToken: ordRes.value.nextPageToken ?? null,
+          hasMore: Boolean(ordRes.value.hasMore),
+          loadingMore: false,
+          refreshing: false,
+        });
+      } else {
+        setOrdersPagination((prev) => ({ ...prev, refreshing: false }));
+      }
+
+      if (coupRes.status === 'fulfilled' && Array.isArray(coupRes.value.coupons)) {
+        setCoupons(coupRes.value.coupons);
+        setCouponsPagination({
+          nextPageToken: coupRes.value.nextPageToken ?? null,
+          hasMore: Boolean(coupRes.value.hasMore),
+          loadingMore: false,
+          refreshing: false,
+        });
+      } else {
+        setCouponsPagination((prev) => ({ ...prev, refreshing: false }));
+      }
+
+      if (revRes.status === 'fulfilled' && Array.isArray(revRes.value.reviews)) {
+        setReviews(revRes.value.reviews);
+        setReviewsPagination({
+          nextPageToken: revRes.value.nextPageToken ?? null,
+          hasMore: Boolean(revRes.value.hasMore),
+          loadingMore: false,
+          refreshing: false,
+        });
+      } else {
+        setReviewsPagination((prev) => ({ ...prev, refreshing: false }));
+      }
+
+      if (whlRes.status === 'fulfilled' && Array.isArray(whlRes.value.inquiries)) {
+        setWholesaleInquiries(whlRes.value.inquiries);
+        setWholesalePagination({
+          nextPageToken: whlRes.value.nextPageToken ?? null,
+          hasMore: Boolean(whlRes.value.hasMore),
+          loadingMore: false,
+          refreshing: false,
+        });
+      } else {
+        setWholesalePagination((prev) => ({ ...prev, refreshing: false }));
+      }
+    } catch (err) {
+      console.warn('Admin API hydration warning:', err);
+      if (isMountedCheck()) {
+        setOrdersPagination((prev) => ({ ...prev, refreshing: false }));
+        setCouponsPagination((prev) => ({ ...prev, refreshing: false }));
+        setReviewsPagination((prev) => ({ ...prev, refreshing: false }));
+        setWholesalePagination((prev) => ({ ...prev, refreshing: false }));
+      }
+    }
+  };
+
   useEffect(() => {
     if (!isAuthReady || !isAdminUser) {
       setOrders([]);
       setWholesaleInquiries([]);
       setCoupons([]);
+      setOrdersPagination(DEFAULT_PAGINATION);
+      setCouponsPagination(DEFAULT_PAGINATION);
+      setReviewsPagination(DEFAULT_PAGINATION);
+      setWholesalePagination(DEFAULT_PAGINATION);
       return;
     }
 
-    let unsubAdmin = () => {};
     let mounted = true;
-
-    const initProtectedSync = async () => {
-      // Load initial privileged collections cleanly from PHP Admin API
-      try {
-        const [ordRes, coupRes, revRes, whlRes] = await Promise.allSettled([
-          apiRequest<{ orders: Order[] }>('/api/orders', { requireAuth: true }),
-          apiRequest<{ coupons: Coupon[] }>('/api/coupons', { requireAuth: true }),
-          apiRequest<{ reviews: CustomerReview[] }>('/api/reviews', { requireAuth: true }),
-          apiRequest<{ inquiries: WholesaleInquiry[] }>('/api/wholesale', { requireAuth: true }),
-        ]);
-
-        if (!mounted) return;
-        if (ordRes.status === 'fulfilled' && Array.isArray(ordRes.value.orders)) {
-          setOrders(ordRes.value.orders);
-        }
-        if (coupRes.status === 'fulfilled' && Array.isArray(coupRes.value.coupons)) {
-          setCoupons(coupRes.value.coupons);
-        }
-        if (revRes.status === 'fulfilled' && Array.isArray(revRes.value.reviews)) {
-          setReviews(revRes.value.reviews);
-        }
-        if (whlRes.status === 'fulfilled' && Array.isArray(whlRes.value.inquiries)) {
-          setWholesaleInquiries(whlRes.value.inquiries);
-        }
-      } catch (err) {
-        console.warn('Admin API hydration warning:', err);
-      }
-
-      // Attach live Firestore admin listeners when permitted by rules
-      try {
-        const { db_initAdminSync } = await import('../services/firestoreService');
-        const stopAdmin = await db_initAdminSync(
-          (ords) => mounted && setOrders(ords),
-          (coups) => mounted && setCoupons(coups),
-          (revs) => mounted && setReviews(revs),
-          (whls) => mounted && setWholesaleInquiries(whls),
-          (error, path) => {
-            console.warn(`[Firestore Admin Sync] "${path}" warning:`, error);
-          }
-        );
-        if (!mounted) {
-          stopAdmin();
-          return;
-        }
-        unsubAdmin = stopAdmin;
-      } catch (err) {
-        console.warn('Admin live listener initialization skipped:', err);
-      }
-    };
-
-    initProtectedSync();
+    fetchInitialAdminCollections(() => mounted);
     return () => {
       mounted = false;
-      unsubAdmin();
     };
   }, [isAuthReady, isAdminUser]);
+
+  const refreshAdminData = async () => {
+    if (!isAdminUser) return;
+    await fetchInitialAdminCollections();
+  };
+
+  const loadMoreOrders = async () => {
+    if (!isAdminUser || !ordersPagination.hasMore || !ordersPagination.nextPageToken || ordersPagination.loadingMore) {
+      return;
+    }
+    setOrdersPagination((prev) => ({ ...prev, loadingMore: true }));
+    try {
+      const res = await apiRequest<{ orders: Order[]; nextPageToken?: string | null; hasMore?: boolean }>(
+        `/api/orders?limit=${ADMIN_PAGE_LIMIT}&pageToken=${encodeURIComponent(ordersPagination.nextPageToken)}`,
+        { requireAuth: true }
+      );
+      if (Array.isArray(res.orders)) {
+        setOrders((prev) => {
+          const seen = new Set(prev.map((o) => o.id));
+          return [...prev, ...res.orders.filter((o) => !seen.has(o.id))];
+        });
+      }
+      setOrdersPagination({
+        nextPageToken: res.nextPageToken ?? null,
+        hasMore: Boolean(res.hasMore),
+        loadingMore: false,
+        refreshing: false,
+      });
+    } catch {
+      setOrdersPagination((prev) => ({ ...prev, loadingMore: false }));
+    }
+  };
+
+  const loadMoreCoupons = async () => {
+    if (!isAdminUser || !couponsPagination.hasMore || !couponsPagination.nextPageToken || couponsPagination.loadingMore) {
+      return;
+    }
+    setCouponsPagination((prev) => ({ ...prev, loadingMore: true }));
+    try {
+      const res = await apiRequest<{ coupons: Coupon[]; nextPageToken?: string | null; hasMore?: boolean }>(
+        `/api/coupons?limit=${ADMIN_PAGE_LIMIT}&pageToken=${encodeURIComponent(couponsPagination.nextPageToken)}`,
+        { requireAuth: true }
+      );
+      if (Array.isArray(res.coupons)) {
+        setCoupons((prev) => {
+          const seen = new Set(prev.map((c) => c.code));
+          return [...prev, ...res.coupons.filter((c) => !seen.has(c.code))];
+        });
+      }
+      setCouponsPagination({
+        nextPageToken: res.nextPageToken ?? null,
+        hasMore: Boolean(res.hasMore),
+        loadingMore: false,
+        refreshing: false,
+      });
+    } catch {
+      setCouponsPagination((prev) => ({ ...prev, loadingMore: false }));
+    }
+  };
+
+  const loadMoreReviews = async () => {
+    if (!isAdminUser || !reviewsPagination.hasMore || !reviewsPagination.nextPageToken || reviewsPagination.loadingMore) {
+      return;
+    }
+    setReviewsPagination((prev) => ({ ...prev, loadingMore: true }));
+    try {
+      const res = await apiRequest<{ reviews: CustomerReview[]; nextPageToken?: string | null; hasMore?: boolean }>(
+        `/api/reviews?limit=${ADMIN_PAGE_LIMIT}&pageToken=${encodeURIComponent(reviewsPagination.nextPageToken)}`,
+        { requireAuth: true }
+      );
+      if (Array.isArray(res.reviews)) {
+        setReviews((prev) => {
+          const seen = new Set(prev.map((r) => r.id));
+          return [...prev, ...res.reviews.filter((r) => !seen.has(r.id))];
+        });
+      }
+      setReviewsPagination({
+        nextPageToken: res.nextPageToken ?? null,
+        hasMore: Boolean(res.hasMore),
+        loadingMore: false,
+        refreshing: false,
+      });
+    } catch {
+      setReviewsPagination((prev) => ({ ...prev, loadingMore: false }));
+    }
+  };
+
+  const loadMoreWholesale = async () => {
+    if (!isAdminUser || !wholesalePagination.hasMore || !wholesalePagination.nextPageToken || wholesalePagination.loadingMore) {
+      return;
+    }
+    setWholesalePagination((prev) => ({ ...prev, loadingMore: true }));
+    try {
+      const res = await apiRequest<{ inquiries: WholesaleInquiry[]; nextPageToken?: string | null; hasMore?: boolean }>(
+        `/api/wholesale?limit=${ADMIN_PAGE_LIMIT}&pageToken=${encodeURIComponent(wholesalePagination.nextPageToken)}`,
+        { requireAuth: true }
+      );
+      if (Array.isArray(res.inquiries)) {
+        setWholesaleInquiries((prev) => {
+          const seen = new Set(prev.map((w) => w.id));
+          return [...prev, ...res.inquiries.filter((w) => !seen.has(w.id))];
+        });
+      }
+      setWholesalePagination({
+        nextPageToken: res.nextPageToken ?? null,
+        hasMore: Boolean(res.hasMore),
+        loadingMore: false,
+        refreshing: false,
+      });
+    } catch {
+      setWholesalePagination((prev) => ({ ...prev, loadingMore: false }));
+    }
+  };
 
   // Persist cart and wishlist locally
   useEffect(() => {
@@ -668,21 +860,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateProduct = async (updated: Product) => {
-    await apiRequest(`/api/products/${encodeURIComponent(updated.id)}`, {
+    const res = await apiRequest<{ product?: Product }>(`/api/products/${encodeURIComponent(updated.id)}`, {
       method: 'PUT',
       requireAuth: true,
       body: updated,
     });
-    setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    const saved = res?.product || updated;
+    setProducts((prev) => prev.map((p) => (p.id === saved.id ? saved : p)));
   };
 
   const addNewProduct = async (product: Product) => {
-    await apiRequest('/api/products', {
+    const res = await apiRequest<{ product?: Product }>('/api/products', {
       method: 'POST',
       requireAuth: true,
       body: product,
     });
-    setProducts((prev) => [product, ...prev]);
+    const saved = res?.product || product;
+    setProducts((prev) => [saved, ...prev.filter((p) => p.id !== saved.id)]);
   };
 
   const deleteProduct = async (productId: string) => {
@@ -812,21 +1006,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addShahiMixBox = async (box: ShahiMixBox) => {
-    await apiRequest('/api/shahi-mix/boxes', {
+    const res = await apiRequest<{ box?: ShahiMixBox }>('/api/shahi-mix/boxes', {
       method: 'POST',
       requireAuth: true,
       body: box,
     });
-    setShahiMixBoxes((prev) => [box, ...prev.filter((b) => b.id !== box.id)]);
+    const saved = res?.box || box;
+    setShahiMixBoxes((prev) => [saved, ...prev.filter((b) => b.id !== saved.id)]);
   };
 
   const updateShahiMixBox = async (box: ShahiMixBox) => {
-    await apiRequest('/api/shahi-mix/boxes', {
+    const res = await apiRequest<{ box?: ShahiMixBox }>('/api/shahi-mix/boxes', {
       method: 'POST',
       requireAuth: true,
       body: box,
     });
-    setShahiMixBoxes((prev) => prev.map((b) => (b.id === box.id ? box : b)));
+    const saved = res?.box || box;
+    setShahiMixBoxes((prev) => prev.map((b) => (b.id === saved.id ? saved : b)));
   };
 
   const deleteShahiMixBox = async (boxId: string) => {
@@ -838,21 +1034,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addShahiMixIngredient = async (ingredient: ShahiMixIngredient) => {
-    await apiRequest('/api/shahi-mix/ingredients', {
+    const res = await apiRequest<{ ingredient?: ShahiMixIngredient }>('/api/shahi-mix/ingredients', {
       method: 'POST',
       requireAuth: true,
       body: ingredient,
     });
-    setShahiMixIngredients((prev) => [ingredient, ...prev.filter((i) => i.id !== ingredient.id)]);
+    const saved = res?.ingredient || ingredient;
+    setShahiMixIngredients((prev) => [saved, ...prev.filter((i) => i.id !== saved.id)]);
   };
 
   const updateShahiMixIngredient = async (ingredient: ShahiMixIngredient) => {
-    await apiRequest('/api/shahi-mix/ingredients', {
+    const res = await apiRequest<{ ingredient?: ShahiMixIngredient }>('/api/shahi-mix/ingredients', {
       method: 'POST',
       requireAuth: true,
       body: ingredient,
     });
-    setShahiMixIngredients((prev) => prev.map((i) => (i.id === ingredient.id ? ingredient : i)));
+    const saved = res?.ingredient || ingredient;
+    setShahiMixIngredients((prev) => prev.map((i) => (i.id === saved.id ? saved : i)));
   };
 
   const deleteShahiMixIngredient = async (ingredientId: string) => {
@@ -898,6 +1096,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         blogs,
         coupons,
         wholesaleInquiries,
+        ordersPagination,
+        couponsPagination,
+        reviewsPagination,
+        wholesalePagination,
         settings,
         wishlist,
         searchQuery,
@@ -952,6 +1154,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateShahiMixIngredient,
         deleteShahiMixIngredient,
         backfillCatalogToFirestore,
+        loadMoreOrders,
+        loadMoreCoupons,
+        loadMoreReviews,
+        loadMoreWholesale,
+        refreshAdminData,
       }}
     >
       {children}

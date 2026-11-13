@@ -40,6 +40,8 @@ export const CustomMixBuilder: React.FC = () => {
   // Per-ingredient selected weight selection state: map of ingredientId -> chosen weight string
   const [itemWeightSelection, setItemWeightSelection] = useState<Record<string, string>>({});
 
+  const DEFAULT_WEIGHT = '100g';
+
   // Available weight options for user selection (10g, 50g, 100g, 250g)
   const WEIGHT_OPTIONS = [
     { label: '10g', grams: 10, isKg: false },
@@ -47,6 +49,10 @@ export const CustomMixBuilder: React.FC = () => {
     { label: '100g', grams: 100, isKg: false },
     { label: '250g', grams: 250, isKg: false },
   ];
+
+  const isIngredientTracked = (ing: ShahiMixIngredient): boolean =>
+    ing.inventoryPolicy === 'tracked' ||
+    (ing.inventoryPolicy !== 'unlimited' && typeof ing.stockGrams === 'number');
 
   // Helper to get price for an ingredient based on chosen weight
   const getIngredientPriceForWeight = (ing: ShahiMixIngredient, weightLabel: string): number => {
@@ -80,9 +86,21 @@ export const CustomMixBuilder: React.FC = () => {
 
   // Add or update item in custom mix
   const handleAddIngredient = (ing: ShahiMixIngredient) => {
-    const chosenWeightLabel = itemWeightSelection[ing.id] || '250g';
-    const weightOpt = WEIGHT_OPTIONS.find((w) => w.label === chosenWeightLabel) || WEIGHT_OPTIONS[1];
+    const chosenWeightLabel = itemWeightSelection[ing.id] || DEFAULT_WEIGHT;
+    const weightOpt = WEIGHT_OPTIONS.find((w) => w.label === chosenWeightLabel) || WEIGHT_OPTIONS[2];
     const itemPrice = getIngredientPriceForWeight(ing, chosenWeightLabel);
+
+    const existingGramsForIng = selectedItems
+      .filter((s) => s.ingredientId === ing.id)
+      .reduce((acc, s) => acc + s.weightGrams, 0);
+
+    if (isIngredientTracked(ing) && typeof ing.stockGrams === 'number') {
+      if (existingGramsForIng + weightOpt.grams > ing.stockGrams) {
+        setAddedNotice(`Only ${ing.stockGrams}g of ${ing.name} currently available in stock.`);
+        setTimeout(() => setAddedNotice(null), 3500);
+        return;
+      }
+    }
 
     const newItem: SelectedMixItem = {
       ingredientId: ing.id,
@@ -98,7 +116,6 @@ export const CustomMixBuilder: React.FC = () => {
         (item) => item.ingredientId === ing.id && item.weightLabel === chosenWeightLabel
       );
       if (existingIdx > -1) {
-        // If same weight exists, duplicate or increase count
         const updated = [...prev];
         updated[existingIdx] = {
           ...updated[existingIdx],
@@ -153,7 +170,8 @@ export const CustomMixBuilder: React.FC = () => {
   // Filtered ingredients catalog (dynamically sourced from admin state)
   const filteredCatalog = shahiMixIngredients.filter((ing) => {
     const matchesSearch = ing.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStock = filterStockOnly ? ing.inStock : true;
+    const available = ing.inStock && (!isIngredientTracked(ing) || (ing.stockGrams ?? 0) > 0);
+    const matchesStock = filterStockOnly ? available : true;
     return matchesSearch && matchesStock;
   });
 
@@ -299,10 +317,25 @@ export const CustomMixBuilder: React.FC = () => {
           </div>
 
           {/* Ingredients Menu Cards Grid */}
+          {filteredCatalog.length === 0 ? (
+            <div className="p-10 bg-white rounded-3xl border border-[#E7DDCA] text-center space-y-2">
+              <p className="font-serif text-lg font-bold text-[#302A25]">
+                {shahiMixIngredients.length === 0
+                  ? 'Custom Mix Ingredients Are Being Replenished'
+                  : 'No matching ingredients found'}
+              </p>
+              <p className="text-xs text-gray-500">
+                {shahiMixIngredients.length === 0
+                  ? 'Please browse our pre-packed harvests in the shop while our pantry ingredient pool refreshes.'
+                  : 'Try clearing your search filter or unchecking In Stock Only.'}
+              </p>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {filteredCatalog.map((ing) => {
-              const currentWeightLabel = itemWeightSelection[ing.id] || '100g';
+              const currentWeightLabel = itemWeightSelection[ing.id] || DEFAULT_WEIGHT;
               const currentPrice = getIngredientPriceForWeight(ing, currentWeightLabel);
+              const ingAvailable = ing.inStock && (!isIngredientTracked(ing) || (ing.stockGrams ?? 0) > 0);
 
               return (
                 <div
@@ -319,12 +352,12 @@ export const CustomMixBuilder: React.FC = () => {
                       />
                       <span
                         className={`absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                          ing.inStock
+                          ingAvailable
                             ? 'bg-[#344B36]/90 text-white backdrop-blur-md'
                             : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {ing.inStock ? 'In Stock' : 'Out of Stock'}
+                        {ingAvailable ? 'In Stock' : 'Out of Stock'}
                       </span>
                     </div>
 
@@ -385,9 +418,9 @@ export const CustomMixBuilder: React.FC = () => {
 
                     <button
                       onClick={() => handleAddIngredient(ing)}
-                      disabled={!ing.inStock}
+                      disabled={!ingAvailable}
                       className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                        ing.inStock
+                        ingAvailable
                           ? 'bg-[#344B36] hover:bg-[#2A3D2C] text-[#F7F4EC] shadow-sm'
                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                       }`}
@@ -400,6 +433,7 @@ export const CustomMixBuilder: React.FC = () => {
               );
             })}
           </div>
+          )}
         </div>
 
         {/* RIGHT AREA: Custom Mix Recipe Tray & Subtotal Summary */}

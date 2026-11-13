@@ -35,11 +35,14 @@ final class CouponController
             return ['status' => 200, 'body' => ['success' => false, 'message' => 'Invalid or inactive coupon code.']];
         }
 
-        if (!empty($coupon['expiryDate'])) {
-            $expTs = strtotime((string) $coupon['expiryDate'] . ' 23:59:59');
-            if ($expTs !== false && time() > $expTs) {
-                return ['status' => 200, 'body' => ['success' => false, 'message' => 'This coupon code has expired.']];
-            }
+        if (!empty($coupon['expiryDate']) && $this->isCouponExpired((string) $coupon['expiryDate'])) {
+            return ['status' => 200, 'body' => ['success' => false, 'message' => 'This coupon code has expired.']];
+        }
+
+        $usageLimit = isset($coupon['usageLimit']) ? (int) $coupon['usageLimit'] : 0;
+        $usageCount = (int) ($coupon['usageCount'] ?? 0);
+        if ($usageLimit > 0 && $usageCount >= $usageLimit) {
+            return ['status' => 200, 'body' => ['success' => false, 'message' => 'This coupon code has reached its redemption limit.']];
         }
 
         $minOrder = (float) ($coupon['minOrderAmount'] ?? 0);
@@ -71,16 +74,32 @@ final class CouponController
         ];
     }
 
-    public function listAdmin(): array
+    public function listAdmin(array $query = []): array
     {
         $this->auth->requireAdmin();
-        $res = $this->firestore->listCollection('coupons', 200);
+        $limit = max(1, min(300, (int) ($query['limit'] ?? 150)));
+        $pageToken = isset($query['pageToken']) ? trim((string) $query['pageToken']) : null;
+        if ($pageToken === '') {
+            $pageToken = null;
+        }
+
+        $res = $this->firestore->listCollection('coupons', $limit, $pageToken);
         $items = array_map(static function (array $c): array {
             unset($c['_docId'], $c['_updateTime']);
             return $c;
         }, $res['documents']);
 
-        return ['status' => 200, 'body' => ['success' => true, 'coupons' => $items]];
+        $nextPageToken = $res['nextPageToken'] ?? null;
+
+        return [
+            'status' => 200,
+            'body' => [
+                'success' => true,
+                'coupons' => $items,
+                'nextPageToken' => $nextPageToken,
+                'hasMore' => $nextPageToken !== null && $nextPageToken !== '',
+            ],
+        ];
     }
 
     public function upsertAdmin(array $input): array
@@ -92,6 +111,8 @@ final class CouponController
         }
 
         $code = strtoupper(preg_replace('/[^A-Z0-9_\-]/', '', trim((string) $input['code'])) ?? '');
+        $existing = $this->firestore->getDocument('coupons', $code);
+
         $coupon = [
             'code' => $code,
             'discountType' => (string) $input['discountType'],
@@ -99,8 +120,11 @@ final class CouponController
             'minOrderAmount' => (float) $input['minOrderAmount'],
             'isActive' => (bool) ($input['isActive'] ?? true),
             'expiryDate' => RequestValidator::cleanString($input['expiryDate'] ?? '2026-12-31', 32),
-            'usageCount' => max(0, (int) ($input['usageCount'] ?? 0)),
+            'usageCount' => is_array($existing) ? max(0, (int) ($existing['usageCount'] ?? 0)) : 0,
         ];
+        if (isset($input['usageLimit']) && $input['usageLimit'] !== null && $input['usageLimit'] !== '') {
+            $coupon['usageLimit'] = max(1, (int) $input['usageLimit']);
+        }
 
         $this->firestore->setDocument('coupons', $code, $coupon);
         return ['status' => 200, 'body' => ['success' => true, 'coupon' => $coupon]];
@@ -130,5 +154,24 @@ final class CouponController
         }
         $this->firestore->deleteDocument('coupons', $cleanCode);
         return ['status' => 200, 'body' => ['success' => true]];
+    }
+
+    private function isCouponExpired(string $expiryDate): bool
+    {
+        $trimmed = trim($expiryDate);
+        if ($trimmed === '') {
+            return false;
+        }
+        $tz = new \DateTimeZone('Asia/Karachi');
+        $dt = \DateTimeImmutable::createFromFormat('!Y-m-d', $trimmed, $tz);
+        if ($dt !== false && $dt->format('Y-m-d') === $trimmed) {
+            $endOfDay = $dt->setTime(23, 59, 59);
+            return time() > $endOfDay->getTimestamp();
+        }
+        $ts = strtotime($trimmed);
+        if ($ts === false) {
+            return true;
+        }
+        return time() > $ts;
     }
 }
