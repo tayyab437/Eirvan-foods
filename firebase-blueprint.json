@@ -403,6 +403,64 @@
         "isSystem": { "type": "boolean" }
       },
       "required": ["id", "name"]
+    },
+    "ShahiMixBox": {
+      "title": "ShahiMixBox",
+      "description": "Custom Shahi Mix tin / box container specification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 120 },
+        "urduName": { "type": "string", "maxLength": 120 },
+        "weight": { "type": "string", "maxLength": 40 },
+        "weightGrams": { "type": "number" },
+        "basePrice": { "type": "number" },
+        "maxItems": { "type": "number" },
+        "description": { "type": "string", "maxLength": 300 },
+        "image": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "name", "weightGrams", "basePrice", "maxItems"]
+    },
+    "ShahiMixIngredient": {
+      "title": "ShahiMixIngredient",
+      "description": "Ingredient option available in custom mix and Shahi gift box builders",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 120 },
+        "urduName": { "type": "string", "maxLength": 120 },
+        "origin": { "type": "string", "maxLength": 120 },
+        "category": { "type": "string", "enum": ["nut", "berry", "seed", "spice"] },
+        "pricePer100g": { "type": "number" },
+        "stockGrams": { "type": "number" },
+        "benefits": { "type": "string", "maxLength": 200 },
+        "image": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "name", "category", "pricePer100g"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized store administrator record keyed by Firebase Auth UID",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 120 },
+        "role": { "type": "string", "enum": ["admin", "superadmin"] },
+        "active": { "type": "boolean" }
+      },
+      "required": ["uid", "role", "active"]
+    },
+    "OrderIdempotency": {
+      "title": "OrderIdempotency",
+      "description": "Server-side idempotency lock preventing duplicate order creation",
+      "type": "object",
+      "properties": {
+        "idempotencyKey": { "type": "string", "maxLength": 128 },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "orderNumber": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["idempotencyKey", "orderId", "orderNumber", "createdAt"]
     }
   },
   "firestore": {
@@ -416,19 +474,19 @@
       "schema": {
         "$ref": "Order"
       },
-      "description": "Collection of all customer orders, logistics shipments, and payment records"
+      "description": "Collection of all customer orders, logistics shipments, and payment records (PHP backend writes, Admin reads)"
     },
     "/reviews/{reviewId}": {
       "schema": {
         "$ref": "Review"
       },
-      "description": "Customer reviews and sensory ratings"
+      "description": "Customer reviews and sensory ratings (public reads approved only)"
     },
     "/coupons/{couponId}": {
       "schema": {
         "$ref": "Coupon"
       },
-      "description": "Promotional vouchers and seasonal discount codes"
+      "description": "Promotional vouchers and seasonal discount codes (admin read/write, backend public validate)"
     },
     "/settings/{settingId}": {
       "schema": {
@@ -440,13 +498,37 @@
       "schema": {
         "$ref": "WholesaleInquiry"
       },
-      "description": "Corporate gifting and wholesale lead inquiries (public create, admin read/manage)"
+      "description": "Corporate gifting and wholesale lead inquiries (backend submit, admin read/manage)"
     },
     "/categories/{categoryId}": {
       "schema": {
         "$ref": "CategoryItem"
       },
       "description": "Store product categories"
+    },
+    "/shahi_boxes/{boxId}": {
+      "schema": {
+        "$ref": "ShahiMixBox"
+      },
+      "description": "Custom Shahi Mix tin configurations"
+    },
+    "/shahi_ingredients/{ingredientId}": {
+      "schema": {
+        "$ref": "ShahiMixIngredient"
+      },
+      "description": "Ingredients for custom Shahi Mix and bespoke gift box builders"
+    },
+    "/admins/{uid}": {
+      "schema": {
+        "$ref": "AdminUser"
+      },
+      "description": "Authorized admin UID registry checked by Firestore rules and PHP AuthMiddleware"
+    },
+    "/order_idempotency/{idempotencyKey}": {
+      "schema": {
+        "$ref": "OrderIdempotency"
+      },
+      "description": "Server-side idempotency records for safe checkout retries"
     }
   }
 }

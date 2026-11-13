@@ -41,6 +41,28 @@ export const CheckoutView: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const createIdempotencyKey = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return `ord-${crypto.randomUUID()}`;
+    }
+    return `ord-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  };
+
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(createIdempotencyKey);
+
+  const cartSignature = React.useMemo(
+    () =>
+      JSON.stringify(
+        cart.map((c) => `${c.productId}:${c.variantId}:${c.quantity}`)
+      ) +
+      `|${appliedCoupon?.code || ''}`,
+    [cart, appliedCoupon?.code]
+  );
+
+  React.useEffect(() => {
+    setIdempotencyKey(createIdempotencyKey());
+  }, [cartSignature]);
+
   if (cart.length === 0) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
@@ -100,16 +122,13 @@ export const CheckoutView: React.FC = () => {
     try {
       const orderItems = cart.map((item) => ({
         productId: item.productId,
-        productName: item.productName,
-        variantWeight: item.weight,
-        sku: item.sku,
-        price: item.price,
+        variantId: item.variantId,
         quantity: item.quantity,
-        subtotal: item.price * item.quantity,
-        imageUrl: item.imageUrl,
+        ...(item.customBuild ? { customBuild: item.customBuild } : {}),
       }));
 
       await placeOrder({
+        idempotencyKey,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         customerEmail: customerEmail.trim() || undefined,
@@ -117,14 +136,10 @@ export const CheckoutView: React.FC = () => {
         province,
         address: address.trim(),
         specialInstructions: specialInstructions.trim() || undefined,
-        items: orderItems,
-        subtotal: cartSubtotal,
-        shippingFee,
-        discountAmount: couponDiscount,
-        couponCode: appliedCoupon?.code,
-        totalAmount: cartTotal,
         paymentMethod,
-        internalNotes: bankRef ? [`Bank Reference: ${bankRef}`] : [],
+        bankReference: bankRef.trim() || undefined,
+        couponCode: appliedCoupon?.code,
+        items: orderItems,
       });
 
       confetti({
@@ -134,11 +149,13 @@ export const CheckoutView: React.FC = () => {
       });
 
       navigate('/track');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setErrorMessage(
-        'An unexpected error occurred while placing your order. Please try again.'
-      );
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : 'An unexpected error occurred while placing your order. Your cart items have been preserved — please try again.';
+      setErrorMessage(message);
     } finally {
       setSubmitting(false);
     }

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
+import { apiRequest } from '../services/apiClient';
 import { Order, OrderStatus } from '../types';
 import {
   Package,
@@ -11,6 +12,7 @@ import {
   ShieldCheck,
   AlertCircle,
   ShoppingBag,
+  Lock,
 } from 'lucide-react';
 
 const STATUS_STEPS: OrderStatus[] = [
@@ -22,34 +24,109 @@ const STATUS_STEPS: OrderStatus[] = [
   'Delivered',
 ];
 
+function loadSavedOrder(): Order | null {
+  try {
+    const raw = sessionStorage.getItem('eirvan_last_order');
+    return raw ? (JSON.parse(raw) as Order) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const OrderTrackingView: React.FC = () => {
-  const { orders, lastPlacedOrder, settings } = useStore();
+  const { lastPlacedOrder, settings } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [searchQuery, setSearchQuery] = useState(
-    lastPlacedOrder ? lastPlacedOrder.orderNumber : ''
-  );
-  const [searchedOrder, setSearchedOrder] = useState<Order | null>(
-    lastPlacedOrder || (orders.length > 0 ? orders[0] : null)
-  );
-  const [searchError, setSearchError] = useState(false);
+  const initialOrder = lastPlacedOrder || loadSavedOrder();
 
-  const handleSearch = (e: React.FormEvent) => {
+  const [orderRefInput, setOrderRefInput] = useState(
+    searchParams.get('ref') || initialOrder?.orderNumber || ''
+  );
+  const [phoneInput, setPhoneInput] = useState(
+    initialOrder?.customerPhone || ''
+  );
+  const [searchedOrder, setSearchedOrder] = useState<Order | null>(initialOrder);
+  const [privacyLevel, setPrivacyLevel] = useState<'full' | 'masked'>('full');
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (lastPlacedOrder) {
+      setSearchedOrder(lastPlacedOrder);
+      setOrderRefInput(lastPlacedOrder.orderNumber);
+      setPrivacyLevel('full');
+    }
+  }, [lastPlacedOrder]);
+
+  useEffect(() => {
+    const ref = searchParams.get('ref')?.trim();
+    const token = searchParams.get('token')?.trim();
+    if (!ref || !token) return;
+
+    let active = true;
+    setSearching(true);
+    setSearchError(null);
+
+    apiRequest<{ success: boolean; privacyLevel?: 'full' | 'masked'; order: Order }>('/api/tracking', {
+      method: 'POST',
+      body: { orderNumber: ref, trackingToken: token },
+    })
+      .then((res) => {
+        if (!active) return;
+        setSearchedOrder(res.order);
+        setPrivacyLevel(res.privacyLevel || 'full');
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setSearchError(
+          err instanceof Error ? err.message : 'Unable to locate order for this tracking link.'
+        );
+      })
+      .finally(() => {
+        if (active) setSearching(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [searchParams]);
+
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSearchError(false);
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return;
+    setSearchError(null);
 
-    const found = orders.find(
-      (o) =>
-        o.orderNumber.toLowerCase() === q ||
-        o.customerPhone.replace(/[^0-9]/g, '') === q.replace(/[^0-9]/g, '')
-    );
+    const ref = orderRefInput.trim().toUpperCase();
+    const phone = phoneInput.replace(/[^0-9]/g, '');
 
-    if (found) {
-      setSearchedOrder(found);
-    } else {
-      setSearchError(true);
+    if (!ref || phone.length < 10) {
+      setSearchError(
+        'Please enter both your Order Reference (e.g. ZDS-2026-...) and your registered 03XX mobile number.'
+      );
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const res = await apiRequest<{
+        success: boolean;
+        privacyLevel?: 'full' | 'masked';
+        order: Order;
+      }>('/api/tracking', {
+        method: 'POST',
+        body: { orderNumber: ref, phone },
+      });
+
+      setSearchedOrder(res.order);
+      setPrivacyLevel(res.privacyLevel || 'masked');
+    } catch (err: unknown) {
+      setSearchError(
+        err instanceof Error
+          ? err.message
+          : 'No matching order found. Please verify your Order Reference and 03XX mobile number.'
+      );
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -64,47 +141,68 @@ export const OrderTrackingView: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
       {/* Search Bar */}
-      <div className="text-center max-w-xl mx-auto mb-12 print:hidden">
+      <div className="text-center max-w-2xl mx-auto mb-12 print:hidden">
         <div className="inline-flex items-center space-x-1.5 text-[11px] font-mono tracking-widest uppercase text-[#B69A62] mb-2">
           <Truck className="w-3.5 h-3.5" />
-          <span>Courier Logistics & Dispatch Verification</span>
+          <span>Courier Logistics &amp; Dispatch Verification</span>
         </div>
         <h1 className="font-serif text-3xl sm:text-4xl text-[#302A25]">
           Track Your Pantry Consignment
         </h1>
         <p className="text-xs sm:text-sm text-[#302A25]/70 mt-2 font-light">
-          Enter your Order Reference (e.g. ZDS-2026-8421) or Pakistani contact number
+          For your privacy, please verify both your Order Reference and registered Pakistani mobile number
         </p>
 
-        <form onSubmit={handleSearch} className="mt-6 flex space-x-2">
-          <div className="relative flex-1">
+        <form onSubmit={handleSearch} className="mt-6 grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+          <div className="relative sm:col-span-5">
             <Search className="w-4 h-4 text-[#302A25]/40 absolute left-3.5 top-3" />
             <input
               type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Order Number or 03XX-XXXXXXX"
-              className="w-full text-xs pl-10 pr-4 py-3 border border-[#E7DDCA] bg-[#FFFFFF] text-[#302A25] focus:outline-hidden focus:border-[#344B36] font-mono"
+              required
+              value={orderRefInput}
+              onChange={(e) => setOrderRefInput(e.target.value)}
+              placeholder="Order Ref (e.g. ZDS-2026-A1B2C3)"
+              className="w-full text-xs pl-10 pr-3 py-3 border border-[#E7DDCA] bg-[#FFFFFF] text-[#302A25] focus:outline-hidden focus:border-[#344B36] font-mono"
+            />
+          </div>
+          <div className="relative sm:col-span-4">
+            <input
+              type="tel"
+              required
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+              placeholder="03XX-XXXXXXX"
+              className="w-full text-xs px-3.5 py-3 border border-[#E7DDCA] bg-[#FFFFFF] text-[#302A25] focus:outline-hidden focus:border-[#344B36] font-mono"
             />
           </div>
           <button
             type="submit"
-            className="px-6 py-3 bg-[#344B36] text-[#F7F4EC] text-xs font-mono uppercase tracking-wider hover:bg-[#2C3E2E] cursor-pointer transition-colors shadow-xs"
+            disabled={searching}
+            className="sm:col-span-3 px-5 py-3 bg-[#344B36] text-[#F7F4EC] text-xs font-mono uppercase tracking-wider hover:bg-[#2C3E2E] cursor-pointer transition-colors shadow-xs disabled:opacity-50"
           >
-            Track Order
+            {searching ? 'Checking...' : 'Track Order'}
           </button>
         </form>
 
         {searchError && (
           <p className="text-xs text-red-700 mt-3 flex items-center justify-center space-x-1 font-mono">
-            <AlertCircle className="w-3.5 h-3.5" />
-            <span>No record found with that reference. Please check your digits or contact customer care.</span>
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{searchError}</span>
           </p>
         )}
       </div>
 
       {searchedOrder ? (
         <div className="space-y-8">
+          {privacyLevel === 'masked' && (
+            <div className="p-3.5 bg-[#F7F4EC] border border-[#E7DDCA] text-[#302A25]/80 text-xs flex items-center space-x-2 print:hidden">
+              <Lock className="w-4 h-4 text-[#B69A62] shrink-0" />
+              <span>
+                Privacy protection active: street address and personal digits are masked during lookup verification.
+              </span>
+            </div>
+          )}
+
           {/* Status Tracker Card (Hidden in print) */}
           <div className="bg-[#FFFFFF] p-6 sm:p-8 border border-[#E7DDCA] shadow-sm print:hidden space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-[#E7DDCA] gap-2">
@@ -128,55 +226,63 @@ export const OrderTrackingView: React.FC = () => {
               </div>
             </div>
 
-            {/* Visual Timeline Stepper */}
-            <div className="py-8 relative">
-              <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-[#244C37] to-[#B69A62] transition-all duration-1000 ease-out"
-                  style={{ width: `${(Math.max(0, currentStepIndex) / (STATUS_STEPS.length - 1)) * 100}%` }}
-                ></div>
+            {searchedOrder.orderStatus === 'Cancelled' || searchedOrder.orderStatus === 'Returned' ? (
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium">
+                This consignment has been marked as <strong>{searchedOrder.orderStatus}</strong>. Contact our helpline if you have questions regarding stock or settlement.
               </div>
+            ) : (
+              <>
+                {/* Visual Timeline Stepper */}
+                <div className="py-8 relative">
+                  <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-[#244C37] to-[#B69A62] transition-all duration-1000 ease-out"
+                      style={{ width: `${(Math.max(0, currentStepIndex) / (STATUS_STEPS.length - 1)) * 100}%` }}
+                    ></div>
+                  </div>
 
-              <div className="relative flex justify-between">
-                {[
-                  { label: 'Placed', icon: ShoppingBag, status: 'Pending' },
-                  { label: 'QA Check', icon: ShieldCheck, status: 'Processing' },
-                  { label: 'Sealed', icon: Package, status: 'Packed' },
-                  { label: 'Dispatched', icon: Truck, status: 'Shipped' },
-                  { label: 'Delivered', icon: CheckCircle2, status: 'Delivered' },
-                ].map((stage, idx) => {
-                  const statusIdx = STATUS_STEPS.indexOf(stage.status as OrderStatus);
-                  const isCompleted = currentStepIndex >= statusIdx;
-                  const isCurrent = searchedOrder.orderStatus === stage.status;
+                  <div className="relative flex justify-between">
+                    {[
+                      { label: 'Placed', icon: ShoppingBag, status: 'Pending' },
+                      { label: 'QA Check', icon: ShieldCheck, status: 'Processing' },
+                      { label: 'Sealed', icon: Package, status: 'Packed' },
+                      { label: 'Dispatched', icon: Truck, status: 'Shipped' },
+                      { label: 'Delivered', icon: CheckCircle2, status: 'Delivered' },
+                    ].map((stage) => {
+                      const statusIdx = STATUS_STEPS.indexOf(stage.status as OrderStatus);
+                      const isCompleted = currentStepIndex >= statusIdx;
+                      const isCurrent = searchedOrder.orderStatus === stage.status;
 
-                  return (
-                    <div key={stage.label} className="flex flex-col items-center group">
-                      <div 
-                        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 z-10 ${
-                          isCompleted 
-                            ? 'bg-[#244C37] text-[#B69A62] shadow-lg shadow-[#244C37]/20 scale-110' 
-                            : 'bg-white text-gray-300 border-2 border-gray-100'
-                        } ${isCurrent ? 'ring-4 ring-[#B69A62]/30' : ''}`}
-                      >
-                        <stage.icon className={`w-6 h-6 ${isCurrent ? 'animate-bounce-subtle' : ''}`} />
-                      </div>
-                      <div className="absolute mt-14 flex flex-col items-center text-center w-24">
-                        <span className={`text-[10px] font-bold uppercase tracking-widest ${isCompleted ? 'text-[#244C37]' : 'text-gray-400'}`}>
-                          {stage.label}
-                        </span>
-                        {isCurrent && (
-                          <span className="text-[9px] bg-[#B69A62]/10 text-[#B69A62] px-2 py-0.5 rounded-full font-bold mt-1 animate-pulse">
-                            ACTIVE
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                      return (
+                        <div key={stage.label} className="flex flex-col items-center group">
+                          <div 
+                            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 z-10 ${
+                              isCompleted 
+                                ? 'bg-[#244C37] text-[#B69A62] shadow-lg shadow-[#244C37]/20 scale-110' 
+                                : 'bg-white text-gray-300 border-2 border-gray-100'
+                            } ${isCurrent ? 'ring-4 ring-[#B69A62]/30' : ''}`}
+                          >
+                            <stage.icon className={`w-6 h-6 ${isCurrent ? 'animate-bounce-subtle' : ''}`} />
+                          </div>
+                          <div className="absolute mt-14 flex flex-col items-center text-center w-24">
+                            <span className={`text-[10px] font-bold uppercase tracking-widest ${isCompleted ? 'text-[#244C37]' : 'text-gray-400'}`}>
+                              {stage.label}
+                            </span>
+                            {isCurrent && (
+                              <span className="text-[9px] bg-[#B69A62]/10 text-[#B69A62] px-2 py-0.5 rounded-full font-bold mt-1 animate-pulse">
+                                ACTIVE
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
-            <div className="h-10"></div> {/* Spacer for absolute labels */}
+                <div className="h-10"></div> {/* Spacer for absolute labels */}
+              </>
+            )}
 
             {/* Courier dispatch note */}
             <div className="p-4 bg-[#F7F4EC] border border-[#E7DDCA] flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-3">

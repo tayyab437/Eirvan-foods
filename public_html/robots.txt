@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# LLM Crawler and Content Discovery
+# Specification: https://llmstxt.org
+# Machine-readable product catalogue & brand guidelines:
+# https://eirvan.netlify.app/llms.txt
+# https://eirvan.netlify.app/llms-full.txt

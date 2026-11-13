@@ -119,11 +119,17 @@ export const CustomMixBuilder: React.FC = () => {
     setSelectedItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const [confirmClear, setConfirmClear] = useState(false);
+
   // Clear all items
   const handleClearMix = () => {
-    if (window.confirm('Clear all ingredients from your custom mix?')) {
-      setSelectedItems([]);
+    if (!confirmClear) {
+      setConfirmClear(true);
+      setTimeout(() => setConfirmClear(false), 3000);
+      return;
     }
+    setSelectedItems([]);
+    setConfirmClear(false);
   };
 
   // Total weight calculations
@@ -184,10 +190,10 @@ export const CustomMixBuilder: React.FC = () => {
       reviewCount: 1,
       nutritionFacts: {
         servingSize: '100g',
-        calories: Math.round(totalNutrition.calories / (totalWeightGrams / 100)),
-        protein: `${Math.round(totalNutrition.protein / (totalWeightGrams / 100))}g`,
-        healthyFats: `${Math.round(totalNutrition.fat / (totalWeightGrams / 100))}g`,
-        carbs: `${Math.round(totalNutrition.carbs / (totalWeightGrams / 100))}g`,
+        calories: Math.round(totalNutrition.calories / Math.max(0.1, totalWeightGrams / 100)),
+        protein: `${Math.round(totalNutrition.protein / Math.max(0.1, totalWeightGrams / 100))}g`,
+        healthyFats: `${Math.round(totalNutrition.fat / Math.max(0.1, totalWeightGrams / 100))}g`,
+        carbs: `${Math.round(totalNutrition.carbs / Math.max(0.1, totalWeightGrams / 100))}g`,
         fiber: '3.5g',
         minerals: 'Potassium, Zinc, Magnesium, Iron',
       },
@@ -203,7 +209,21 @@ export const CustomMixBuilder: React.FC = () => {
       stock: 100,
     };
 
-    addToCart(customProduct, customVariant, 1, customInstructions, 'Custom Ingredients Pantry Bag');
+    const customBuild = {
+      kind: 'custom-mix' as const,
+      title: formattedTitle,
+      items: selectedItems.map((item) => {
+        const baseOpt = WEIGHT_OPTIONS.find((w) => w.label === item.weightLabel);
+        const multiplier = baseOpt && baseOpt.grams > 0 ? Math.max(1, Math.round(item.weightGrams / baseOpt.grams)) : 1;
+        return {
+          ingredientId: item.ingredientId,
+          weightLabel: item.weightLabel,
+          multiplier,
+        };
+      }),
+    };
+
+    addToCart(customProduct, customVariant, 1, customInstructions, 'Custom Ingredients Pantry Bag', customBuild);
 
     if (directCheckout) {
       navigate('/checkout');
@@ -398,7 +418,7 @@ export const CustomMixBuilder: React.FC = () => {
                   className="text-xs text-rose-600 hover:underline flex items-center space-x-1 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Clear All</span>
+                  <span>{confirmClear ? 'Click Again to Clear' : 'Clear All'}</span>
                 </button>
               )}
             </div>

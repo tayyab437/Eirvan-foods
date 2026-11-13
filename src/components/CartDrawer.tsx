@@ -33,6 +33,7 @@ export const CartDrawer: React.FC = () => {
   } = useStore();
 
   const [couponInput, setCouponInput] = useState('');
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [couponFeedback, setCouponFeedback] = useState<{
     success: boolean;
     message: string;
@@ -40,13 +41,18 @@ export const CartDrawer: React.FC = () => {
 
   if (!isCartOpen) return null;
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!couponInput.trim()) return;
-    const result = applyCoupon(couponInput);
-    setCouponFeedback(result);
-    if (result.success) {
-      setCouponInput('');
+    if (!couponInput.trim() || applyingCoupon) return;
+    setApplyingCoupon(true);
+    try {
+      const result = await applyCoupon(couponInput);
+      setCouponFeedback(result);
+      if (result.success) {
+        setCouponInput('');
+      }
+    } finally {
+      setApplyingCoupon(false);
     }
   };
 
@@ -238,9 +244,10 @@ export const CartDrawer: React.FC = () => {
                   </div>
                   <button
                     type="submit"
-                    className="px-3.5 py-2 bg-[#344B36] text-[#F7F4EC] text-xs uppercase tracking-wider font-bold rounded-xl hover:bg-[#233425] transition-colors cursor-pointer"
+                    disabled={applyingCoupon}
+                    className="px-3.5 py-2 bg-[#344B36] text-[#F7F4EC] text-xs uppercase tracking-wider font-bold rounded-xl hover:bg-[#233425] transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    Apply
+                    {applyingCoupon ? 'Checking...' : 'Apply'}
                   </button>
                 </form>
               )}

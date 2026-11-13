@@ -47,9 +47,13 @@ export const ProductPageView: React.FC = () => {
   // Review submission state
   const [reviewerName, setReviewerName] = useState('');
   const [reviewerCity, setReviewerCity] = useState('');
+  const [reviewerOrderNumber, setReviewerOrderNumber] = useState('');
+  const [reviewerPhone, setReviewerPhone] = useState('');
   const [reviewerRating, setReviewerRating] = useState(5);
   const [reviewerComment, setReviewerComment] = useState('');
-  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSubmittedMsg, setReviewSubmittedMsg] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (product) {
@@ -83,7 +87,9 @@ export const ProductPageView: React.FC = () => {
 
   const currentPrice = currentVariant.salePrice || currentVariant.price;
   const originalPrice = currentVariant.salePrice ? currentVariant.price : null;
-  const productReviews = reviews.filter((r) => r.productId === product.id);
+  const productReviews = reviews.filter(
+    (r) => r.productId === product.id && (!r.status || r.status === 'approved')
+  );
   const isWishlisted = wishlist.includes(product.id);
 
   const handleAddToCart = () => {
@@ -98,25 +104,40 @@ export const ProductPageView: React.FC = () => {
     setIsCartOpen(false);
   };
 
-  const handleReviewSubmit = (e: React.FormEvent) => {
+  const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reviewerName || !reviewerComment) return;
+    if (!reviewerName.trim() || !reviewerComment.trim() || reviewSubmitting) return;
+    setReviewError(null);
+    setReviewSubmitting(true);
 
-    addReview({
-      productId: product.id,
-      productName: product.name,
-      customerName: reviewerName,
-      city: reviewerCity || 'Pakistan',
-      rating: reviewerRating,
-      comment: reviewerComment,
-      verifiedPurchase: true,
-    });
+    try {
+      const res = await addReview({
+        productId: product.id,
+        productName: product.name,
+        customerName: reviewerName.trim(),
+        city: reviewerCity.trim() || 'Pakistan',
+        rating: reviewerRating,
+        comment: reviewerComment.trim(),
+        ...(reviewerOrderNumber.trim() ? { orderNumber: reviewerOrderNumber.trim() } : {}),
+        ...(reviewerPhone.trim() ? { phone: reviewerPhone.trim() } : {}),
+      });
 
-    setReviewSubmitted(true);
-    setReviewerName('');
-    setReviewerCity('');
-    setReviewerComment('');
-    setTimeout(() => setReviewSubmitted(false), 3000);
+      setReviewSubmittedMsg(
+        res.message || 'Thank you! Your review has been submitted for moderation.'
+      );
+      setReviewerName('');
+      setReviewerCity('');
+      setReviewerOrderNumber('');
+      setReviewerPhone('');
+      setReviewerComment('');
+      setTimeout(() => setReviewSubmittedMsg(null), 5000);
+    } catch (err: unknown) {
+      setReviewError(
+        err instanceof Error ? err.message : 'Unable to submit review right now.'
+      );
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   const related = products
@@ -543,15 +564,21 @@ export const ProductPageView: React.FC = () => {
             {/* Review Submission Form */}
             <div className="p-6 rounded-2xl bg-[#F7F4EC] border border-[#E7DDCA]">
               <h4 className="font-serif text-lg font-bold text-[#302A25] mb-3">
-                Leave a Verified Review
+                Leave a Customer Review
               </h4>
-              {reviewSubmitted ? (
+              {reviewSubmittedMsg ? (
                 <div className="p-4 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-semibold flex items-center space-x-2">
-                  <Check className="w-5 h-5 text-emerald-600" />
-                  <span>Thank you! Your review has been successfully submitted.</span>
+                  <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>{reviewSubmittedMsg}</span>
                 </div>
               ) : (
                 <form onSubmit={handleReviewSubmit} className="space-y-4">
+                  {reviewError && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-medium">
+                      {reviewError}
+                    </div>
+                  )}
+
                   <div className="flex items-center space-x-3">
                     <span className="text-xs font-semibold text-gray-700">Rating:</span>
                     <div className="flex text-[#B69A62]">
@@ -592,6 +619,23 @@ export const ProductPageView: React.FC = () => {
                     />
                   </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <input
+                      type="text"
+                      value={reviewerOrderNumber}
+                      onChange={(e) => setReviewerOrderNumber(e.target.value)}
+                      placeholder="Order Ref (optional, for Verified badge)"
+                      className="w-full text-xs p-3 rounded-xl border border-[#E7DDCA] bg-white focus:outline-hidden focus:border-[#344B36] font-mono"
+                    />
+                    <input
+                      type="tel"
+                      value={reviewerPhone}
+                      onChange={(e) => setReviewerPhone(e.target.value)}
+                      placeholder="Order Mobile 03XX (optional, for Verified badge)"
+                      className="w-full text-xs p-3 rounded-xl border border-[#E7DDCA] bg-white focus:outline-hidden focus:border-[#344B36] font-mono"
+                    />
+                  </div>
+
                   <textarea
                     required
                     rows={4}
@@ -603,9 +647,10 @@ export const ProductPageView: React.FC = () => {
 
                   <button
                     type="submit"
-                    className="px-6 py-3 bg-[#344B36] text-[#F7F4EC] text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-[#233425] transition-colors cursor-pointer"
+                    disabled={reviewSubmitting}
+                    className="px-6 py-3 bg-[#344B36] text-[#F7F4EC] text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-[#233425] transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    Submit Review
+                    {reviewSubmitting ? 'Submitting...' : 'Submit Review for Moderation'}
                   </button>
                 </form>
               )}

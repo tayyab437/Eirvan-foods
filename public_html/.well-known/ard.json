@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "name": "Eirvan Foods®",
+  "description": "Pakistan's premier single-origin dry fruits and superfoods store.",
+  "contact_email": "eirvanfoods@gmail.com",
+  "ai_resources": {
+    "llms_txt": "https://eirvan.netlify.app/llms.txt",
+    "llms_full_txt": "https://eirvan.netlify.app/llms-full.txt"
+  },
+  "capabilities": [
+    "e-commerce",
+    "nutritional-advice",
+    "custom-gifting"
+  ]
+}

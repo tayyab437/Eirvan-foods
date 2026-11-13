@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { handleFirestoreError, OperationType } from '../firebase/errors';
-
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiRequest } from '../services/apiClient';
 import {
   Product,
   ProductVariant,
   CartItem,
+  CustomBuildSpec,
   Order,
   OrderStatus,
   StoreSettings,
@@ -16,6 +16,7 @@ import {
   ShahiMixIngredient,
   UnboxingReview,
   WholesaleInquiry,
+  PaymentMethod,
 } from '../types';
 import {
   INITIAL_PRODUCTS,
@@ -28,6 +29,37 @@ import {
   INITIAL_SHAHI_MIX_INGREDIENTS,
   INITIAL_UNBOXING_REVIEWS,
 } from '../data/mockData';
+
+export interface PlaceOrderPayload {
+  idempotencyKey: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  city: string;
+  province: string;
+  address: string;
+  specialInstructions?: string;
+  paymentMethod: PaymentMethod;
+  bankReference?: string;
+  couponCode?: string;
+  items: {
+    productId: string;
+    variantId: string;
+    quantity: number;
+    customBuild?: CustomBuildSpec;
+  }[];
+}
+
+export interface AddReviewPayload {
+  productId: string;
+  productName: string;
+  customerName: string;
+  city: string;
+  rating: number;
+  comment: string;
+  orderNumber?: string;
+  phone?: string;
+}
 
 interface StoreContextType {
   products: Product[];
@@ -63,7 +95,6 @@ interface StoreContextType {
   isAuthReady: boolean;
   isAdminUser: boolean;
 
-  // Actions
   setSearchQuery: (query: string) => void;
   setSelectedProduct: (prod: Product | null) => void;
   setIsCartOpen: (open: boolean) => void;
@@ -71,13 +102,20 @@ interface StoreContextType {
   setIsAiStudioOpen: (open: boolean) => void;
   setIsGiftWizardOpen: (open: boolean) => void;
 
-  addToCart: (product: Product, variant: ProductVariant, quantity?: number, customGiftNote?: string, boxStyle?: string) => void;
+  addToCart: (
+    product: Product,
+    variant: ProductVariant,
+    quantity?: number,
+    customGiftNote?: string,
+    boxStyle?: string,
+    customBuild?: CustomBuildSpec
+  ) => void;
   updateCartQuantity: (variantId: string, quantity: number) => void;
   removeFromCart: (variantId: string) => void;
   clearCart: () => void;
-  applyCoupon: (code: string) => { success: boolean; message: string };
+  applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>;
   removeCoupon: () => void;
-  placeOrder: (orderData: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'orderStatus' | 'paymentStatus'>) => Promise<Order>;
+  placeOrder: (orderData: PlaceOrderPayload) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: OrderStatus, adminNote?: string) => Promise<void>;
   submitWholesaleInquiry: (inquiryData: Omit<WholesaleInquiry, 'id' | 'createdAt' | 'status'>) => Promise<void>;
   updateWholesaleStatus: (inquiryId: string, status: WholesaleInquiry['status']) => Promise<void>;
@@ -85,7 +123,9 @@ interface StoreContextType {
   signInWithGoogle: () => Promise<void>;
   signOutUser: () => Promise<void>;
   toggleWishlist: (productId: string) => void;
-  addReview: (review: Omit<CustomerReview, 'id' | 'date' | 'status'>) => Promise<void>;
+  addReview: (review: AddReviewPayload) => Promise<{ success: boolean; message: string }>;
+  moderateReview: (reviewId: string, status: CustomerReview['status']) => Promise<void>;
+  deleteReview: (reviewId: string) => Promise<void>;
   updateSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
   updateProduct: (updated: Product) => Promise<void>;
   addNewProduct: (product: Product) => Promise<void>;
@@ -96,42 +136,64 @@ interface StoreContextType {
   deleteCoupon: (code: string) => Promise<void>;
   addCategory: (category: { name: string; image?: string; description?: string }) => Promise<{ success: boolean; message: string }>;
   deleteCategory: (categoryId: string) => Promise<{ success: boolean; message: string }>;
-  addShahiMixBox: (box: ShahiMixBox) => void;
-  updateShahiMixBox: (box: ShahiMixBox) => void;
-  deleteShahiMixBox: (boxId: string) => void;
-  addShahiMixIngredient: (ingredient: ShahiMixIngredient) => void;
-  updateShahiMixIngredient: (ingredient: ShahiMixIngredient) => void;
-  deleteShahiMixIngredient: (ingredientId: string) => void;
+  addShahiMixBox: (box: ShahiMixBox) => Promise<void>;
+  updateShahiMixBox: (box: ShahiMixBox) => Promise<void>;
+  deleteShahiMixBox: (boxId: string) => Promise<void>;
+  addShahiMixIngredient: (ingredient: ShahiMixIngredient) => Promise<void>;
+  updateShahiMixIngredient: (ingredient: ShahiMixIngredient) => Promise<void>;
+  deleteShahiMixIngredient: (ingredientId: string) => Promise<void>;
+  backfillCatalogToFirestore: () => Promise<{ createdMissingDocs: number }>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
+function isExpiredDate(expiryDate?: string): boolean {
+  if (!expiryDate) return false;
+  const exp = new Date(`${expiryDate}T23:59:59`);
+  return !Number.isNaN(exp.getTime()) && Date.now() > exp.getTime();
+}
+
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
+  const [shahiMixBoxes, setShahiMixBoxes] = useState<ShahiMixBox[]>(INITIAL_SHAHI_MIX_BOXES);
+  const [shahiMixIngredients, setShahiMixIngredients] = useState<ShahiMixIngredient[]>(INITIAL_SHAHI_MIX_INGREDIENTS);
+  const [unboxingReviews] = useState<UnboxingReview[]>(INITIAL_UNBOXING_REVIEWS);
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [wholesaleInquiries, setWholesaleInquiries] = useState<WholesaleInquiry[]>([]);
   const [settings, setSettings] = useState<StoreSettings>(INITIAL_SETTINGS);
   const [coupons, setCoupons] = useState<Coupon[]>(INITIAL_COUPONS);
   const [reviews, setReviews] = useState<CustomerReview[]>(INITIAL_REVIEWS);
   const [blogs] = useState<BlogPost[]>(INITIAL_BLOGS);
+
   const [isFirebaseSyncing, setIsFirebaseSyncing] = useState<boolean>(true);
   const [firebaseConnected, setFirebaseConnected] = useState<boolean>(true);
-  const [currentUser, setCurrentUser] = useState<{ uid: string; email: string | null; displayName: string | null; emailVerified: boolean } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+    emailVerified: boolean;
+  } | null>(null);
   const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
-  const isAdminUser = Boolean(
-    currentUser &&
-    currentUser.email === 'ac.repair.in.dubai3@gmail.com' &&
-    currentUser.emailVerified
-  );
+  const [isAdminUser, setIsAdminUser] = useState<boolean>(false);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('zds_cart');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('zds_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [wishlist, setWishlist] = useState<string[]>(() => {
-    const saved = localStorage.getItem('zds_wishlist');
-    return saved ? JSON.parse(saved) : ['prod-3', 'prod-9'];
+    try {
+      const saved = localStorage.getItem('zds_wishlist');
+      return saved ? JSON.parse(saved) : ['prod-3', 'prod-9'];
+    } catch {
+      return ['prod-3', 'prod-9'];
+    }
   });
 
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
@@ -143,9 +205,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isGiftWizardOpen, setIsGiftWizardOpen] = useState<boolean>(false);
   const [lastPlacedOrder, setLastPlacedOrder] = useState<Order | null>(null);
 
-  const seedingInProgress = useRef(false);
-
-  // Track Firebase Auth state so admin-only collections are gated safely
+  // 1. Track Firebase Auth & Verify Admin Role Server-Side via /api/auth/session
   useEffect(() => {
     let unsubAuth = () => {};
     let mounted = true;
@@ -155,19 +215,50 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const { getFirebaseAuth } = await import('../firebase/config');
         const { onAuthStateChanged } = await import('firebase/auth');
         const auth = await getFirebaseAuth();
-        unsubAuth = onAuthStateChanged(auth, (user) => {
+
+        unsubAuth = onAuthStateChanged(auth, async (user) => {
           if (!mounted) return;
-          if (user) {
-            setCurrentUser({
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName,
-              emailVerified: user.emailVerified,
-            });
-          } else {
+          if (!user) {
             setCurrentUser(null);
+            setIsAdminUser(false);
+            setIsAuthReady(true);
+            return;
           }
-          setIsAuthReady(true);
+
+          setCurrentUser({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            emailVerified: user.emailVerified,
+          });
+
+          try {
+            const session = await apiRequest<{ isAdmin?: boolean }>('/api/auth/session', {
+              optionalAuth: true,
+            });
+            if (mounted) {
+              setIsAdminUser(Boolean(session?.isAdmin));
+            }
+          } catch {
+            // If PHP backend isn't mounted (e.g. local Vite-only preview), verify strictly via /admins/{uid} document read
+            try {
+              const { getFirestoreDb } = await import('../firebase/config');
+              const { doc, getDoc } = await import('firebase/firestore');
+              const db = await getFirestoreDb();
+              const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+              if (mounted) {
+                setIsAdminUser(Boolean(user.emailVerified && adminSnap.exists()));
+              }
+            } catch {
+              if (mounted) {
+                setIsAdminUser(false);
+              }
+            }
+          } finally {
+            if (mounted) {
+              setIsAuthReady(true);
+            }
+          }
         });
       } catch (err) {
         console.error('Failed to initialize Firebase Auth:', err);
@@ -176,42 +267,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     initAuth();
-
     return () => {
       mounted = false;
       unsubAuth();
     };
   }, []);
 
-  // Synchronize public storefront collections with Firebase Firestore in real-time
+  // 2. Public Read-Only Storefront Sync (No orders, no coupon list, no unauth seeding)
   useEffect(() => {
     let unsubPublic = () => {};
     let mounted = true;
 
-    const initFirestoreSync = async () => {
+    const initFirestorePublicSync = async () => {
       try {
         setIsFirebaseSyncing(true);
-        const { db_testConnection, db_initSync, db_seedDatabase } = await import('../services/firestoreService');
+        const { db_initPublicSync } = await import('../services/firestoreService');
 
-        await db_testConnection();
-
-        const stopSync = await db_initSync(
+        const stopSync = await db_initPublicSync(
           (prods) => setProducts(prods),
-          (ords) => setOrders(ords),
           (revs) => setReviews(revs),
-          (coups) => setCoupons(coups),
-          (setts) => setSettings({
-            ...setts,
-            contactPhone: '+92 317 6369458',
-            whatsappNumber: '+92 317 6369458',
-            contactEmail: 'eirvanfoods@gmail.com',
-          }),
-          (error, path) => handleFirestoreError(error, OperationType.GET, path),
-          async () => {
-            if (!seedingInProgress.current) {
-              seedingInProgress.current = true;
-              await db_seedDatabase(INITIAL_PRODUCTS, INITIAL_SETTINGS, INITIAL_COUPONS, INITIAL_REVIEWS);
-            }
+          (setts) => setSettings(setts),
+          (cats) => setCategoriesList(cats),
+          (boxes) => setShahiMixBoxes(boxes),
+          (ings) => setShahiMixIngredients(ings),
+          (error, path) => {
+            console.warn(`[Firestore Public Sync] Listener warning on "${path}":`, error);
           }
         );
 
@@ -223,76 +303,104 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setFirebaseConnected(true);
         setIsFirebaseSyncing(false);
       } catch (err) {
-        console.error('Failed to initialize Firestore connection:', err);
+        console.error('Failed to initialize public Firestore sync:', err);
         setFirebaseConnected(false);
         setIsFirebaseSyncing(false);
       }
     };
 
-    initFirestoreSync();
-
+    initFirestorePublicSync();
     return () => {
       mounted = false;
       unsubPublic();
     };
   }, []);
 
-  // Synchronize protected admin-only wholesale inquiries ONLY when signed in as verified admin
+  // 3. Admin-Only Protected Data Sync (Orders, Coupons, All Reviews, Wholesale Inquiries)
   useEffect(() => {
     if (!isAuthReady || !isAdminUser) {
+      setOrders([]);
       setWholesaleInquiries([]);
+      setCoupons([]);
       return;
     }
 
-    let unsubWholesale = () => {};
+    let unsubAdmin = () => {};
     let mounted = true;
 
-    const initWholesaleSync = async () => {
+    const initProtectedSync = async () => {
+      // Load initial privileged collections cleanly from PHP Admin API
       try {
-        const { db_initWholesaleSync } = await import('../services/firestoreService');
-        const stopSync = await db_initWholesaleSync(
-          (whls) => {
-            if (mounted) setWholesaleInquiries(whls);
-          },
-          (error, path) => handleFirestoreError(error, OperationType.GET, path)
+        const [ordRes, coupRes, revRes, whlRes] = await Promise.allSettled([
+          apiRequest<{ orders: Order[] }>('/api/orders', { requireAuth: true }),
+          apiRequest<{ coupons: Coupon[] }>('/api/coupons', { requireAuth: true }),
+          apiRequest<{ reviews: CustomerReview[] }>('/api/reviews', { requireAuth: true }),
+          apiRequest<{ inquiries: WholesaleInquiry[] }>('/api/wholesale', { requireAuth: true }),
+        ]);
+
+        if (!mounted) return;
+        if (ordRes.status === 'fulfilled' && Array.isArray(ordRes.value.orders)) {
+          setOrders(ordRes.value.orders);
+        }
+        if (coupRes.status === 'fulfilled' && Array.isArray(coupRes.value.coupons)) {
+          setCoupons(coupRes.value.coupons);
+        }
+        if (revRes.status === 'fulfilled' && Array.isArray(revRes.value.reviews)) {
+          setReviews(revRes.value.reviews);
+        }
+        if (whlRes.status === 'fulfilled' && Array.isArray(whlRes.value.inquiries)) {
+          setWholesaleInquiries(whlRes.value.inquiries);
+        }
+      } catch (err) {
+        console.warn('Admin API hydration warning:', err);
+      }
+
+      // Attach live Firestore admin listeners when permitted by rules
+      try {
+        const { db_initAdminSync } = await import('../services/firestoreService');
+        const stopAdmin = await db_initAdminSync(
+          (ords) => mounted && setOrders(ords),
+          (coups) => mounted && setCoupons(coups),
+          (revs) => mounted && setReviews(revs),
+          (whls) => mounted && setWholesaleInquiries(whls),
+          (error, path) => {
+            console.warn(`[Firestore Admin Sync] "${path}" warning:`, error);
+          }
         );
         if (!mounted) {
-          stopSync();
+          stopAdmin();
           return;
         }
-        unsubWholesale = stopSync;
+        unsubAdmin = stopAdmin;
       } catch (err) {
-        console.error('Failed to subscribe to wholesale inquiries:', err);
+        console.warn('Admin live listener initialization skipped:', err);
       }
     };
 
-    initWholesaleSync();
-
+    initProtectedSync();
     return () => {
       mounted = false;
-      unsubWholesale();
+      unsubAdmin();
     };
   }, [isAuthReady, isAdminUser]);
 
-  // Save Cart and Wishlist in localStorage
+  // Persist cart and wishlist locally
   useEffect(() => {
-    localStorage.setItem('zds_cart', JSON.stringify(cart));
+    try {
+      localStorage.setItem('zds_cart', JSON.stringify(cart));
+    } catch {
+      // Storage unavailable
+    }
   }, [cart]);
 
   useEffect(() => {
-    localStorage.setItem('zds_wishlist', JSON.stringify(wishlist));
+    try {
+      localStorage.setItem('zds_wishlist', JSON.stringify(wishlist));
+    } catch {
+      // Storage unavailable
+    }
   }, [wishlist]);
 
-  const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(() => {
-    const saved = localStorage.getItem('zds_categories');
-    return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('zds_categories', JSON.stringify(categoriesList));
-  }, [categoriesList]);
-
-  // Derived category counts dynamically from categoriesList and products
   const categories = [
     {
       id: 'all',
@@ -311,40 +419,37 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     })),
   ];
 
-  // Cart calculations
+  // Derived cart preview totals (server remains authoritative on order submission)
   const cartSubtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
-
   const shippingFee =
     cartSubtotal === 0 || cartSubtotal >= settings.freeShippingThreshold
       ? 0
       : settings.standardShippingRate;
-
   const freeShippingRemaining = Math.max(0, settings.freeShippingThreshold - cartSubtotal);
 
   let couponDiscount = 0;
-  if (appliedCoupon) {
+  if (appliedCoupon && appliedCoupon.isActive && !isExpiredDate(appliedCoupon.expiryDate) && cartSubtotal >= appliedCoupon.minOrderAmount) {
     if (appliedCoupon.discountType === 'percentage') {
       couponDiscount = Math.round((cartSubtotal * appliedCoupon.discountValue) / 100);
     } else {
       couponDiscount = Math.min(cartSubtotal, appliedCoupon.discountValue);
     }
   }
-
   const cartTotal = Math.max(0, cartSubtotal + shippingFee - couponDiscount);
 
-  // Cart actions
   const addToCart = (
     product: Product,
     variant: ProductVariant,
     quantity = 1,
     customGiftNote?: string,
-    boxStyle?: string
+    boxStyle?: string,
+    customBuild?: CustomBuildSpec
   ) => {
     setCart((prev) => {
       const existingIndex = prev.findIndex((item) => item.variantId === variant.id);
       const effectivePrice = variant.salePrice || variant.price;
 
-      if (existingIndex > -1) {
+      if (existingIndex > -1 && !customBuild) {
         const updated = [...prev];
         const newQty = Math.min(variant.stock, updated[existingIndex].quantity + quantity);
         updated[existingIndex] = {
@@ -354,24 +459,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           boxStyle: boxStyle || updated[existingIndex].boxStyle,
         };
         return updated;
-      } else {
-        return [
-          ...prev,
-          {
-            productId: product.id,
-            productName: product.name,
-            imageUrl: product.imageUrl,
-            variantId: variant.id,
-            weight: variant.weight,
-            price: effectivePrice,
-            quantity: Math.min(variant.stock, quantity),
-            sku: variant.sku,
-            maxStock: variant.stock,
-            customGiftNote,
-            boxStyle,
-          },
-        ];
       }
+
+      return [
+        ...prev,
+        {
+          productId: product.id,
+          productName: product.name,
+          imageUrl: product.imageUrl,
+          variantId: variant.id,
+          weight: variant.weight,
+          price: effectivePrice,
+          quantity: Math.min(variant.stock, quantity),
+          sku: variant.sku,
+          maxStock: variant.stock,
+          customGiftNote,
+          boxStyle,
+          ...(customBuild ? { customBuild } : {}),
+        },
+      ];
     });
     setIsCartOpen(true);
   };
@@ -382,12 +488,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
     setCart((prev) =>
-      prev.map((item) => {
-        if (item.variantId === variantId) {
-          return { ...item, quantity: Math.min(item.maxStock, quantity) };
-        }
-        return item;
-      })
+      prev.map((item) =>
+        item.variantId === variantId ? { ...item, quantity: Math.min(item.maxStock, quantity) } : item
+      )
     );
   };
 
@@ -400,146 +503,108 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAppliedCoupon(null);
   };
 
-  const applyCoupon = (code: string) => {
+  const applyCoupon = async (code: string): Promise<{ success: boolean; message: string }> => {
     const trimmed = code.trim().toUpperCase();
-    const found = coupons.find((c) => c.code.toUpperCase() === trimmed && c.isActive);
-
-    if (!found) {
-      return { success: false, message: 'Invalid or expired coupon code.' };
+    if (!trimmed) {
+      return { success: false, message: 'Please enter a promo code.' };
     }
-    if (cartSubtotal < found.minOrderAmount) {
+
+    try {
+      const res = await apiRequest<{
+        success: boolean;
+        message: string;
+        coupon?: Coupon;
+      }>('/api/coupons/validate', {
+        method: 'POST',
+        body: { code: trimmed, subtotal: cartSubtotal },
+      });
+
+      if (res.success && res.coupon) {
+        setAppliedCoupon(res.coupon);
+        return { success: true, message: res.message };
+      }
+      return { success: false, message: res.message || 'Invalid or expired coupon code.' };
+    } catch (err) {
       return {
         success: false,
-        message: `This coupon requires a minimum cart order of Rs. ${found.minOrderAmount.toLocaleString()}.`,
+        message: err instanceof Error ? err.message : 'Unable to validate coupon code.',
       };
     }
-
-    setAppliedCoupon(found);
-    return {
-      success: true,
-      message: `Coupon "${found.code}" applied successfully! You saved Rs. ${
-        found.discountType === 'percentage'
-          ? Math.round((cartSubtotal * found.discountValue) / 100)
-          : found.discountValue
-      }.`,
-    };
   };
 
   const removeCoupon = () => {
     setAppliedCoupon(null);
   };
 
-  // Place order synced directly with Firestore
-  const placeOrder = async (
-    orderData: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'orderStatus' | 'paymentStatus'>
-  ): Promise<Order> => {
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const orderNumber = `ZDS-2026-${randomSuffix}`;
-    const newOrder: Order = {
-      ...orderData,
-      id: `ord-${Date.now()}`,
-      orderNumber,
-      createdAt: new Date().toISOString(),
-      orderStatus: 'Pending',
-      paymentStatus: 'Pending',
-      courier: 'TCS Express Pakistan',
-      trackingNumber: `PK-${Math.floor(100000000 + Math.random() * 900000000)}`,
+  // Authoritative Server-Side Order Creation — NEVER swallows errors or clears cart on failure!
+  const placeOrder = async (orderData: PlaceOrderPayload): Promise<Order> => {
+    const response = await apiRequest<{
+      success: boolean;
+      order: Order;
+      trackingToken?: string;
+    }>('/api/orders', {
+      method: 'POST',
+      body: orderData,
+    });
+
+    if (!response?.order?.id) {
+      throw new Error('Server did not return a confirmed order record.');
+    }
+
+    const confirmedOrder: Order = {
+      ...response.order,
+      ...(response.trackingToken ? { trackingToken: response.trackingToken } : {}),
     };
 
     try {
-      const { db_placeOrder, db_updateProduct, db_addCoupon } = await import('../services/firestoreService');
-      await db_placeOrder(newOrder);
-
-      // Deduct stock in Firestore
-      for (const item of cart) {
-        const prod = products.find((p) => p.id === item.productId);
-        if (prod) {
-          const updatedVariants = prod.variants.map((v) => {
-            if (v.id === item.variantId) {
-              return { ...v, stock: Math.max(0, v.stock - item.quantity) };
-            }
-            return v;
-          });
-          const hasStock = updatedVariants.some((v) => v.stock > 0);
-          const updatedProd = { ...prod, variants: updatedVariants, inStock: hasStock };
-          await db_updateProduct(updatedProd);
-        }
-      }
-
-      // If coupon used, increment usage count in Firestore
-      if (appliedCoupon) {
-        await db_addCoupon({
-          ...appliedCoupon,
-          usageCount: (appliedCoupon.usageCount || 0) + 1,
-        });
-      }
-
-      setLastPlacedOrder(newOrder);
-      clearCart();
-      return newOrder;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `orders/${newOrder.id}`);
-      setLastPlacedOrder(newOrder);
-      clearCart();
-      return newOrder;
+      sessionStorage.setItem('eirvan_last_order', JSON.stringify(confirmedOrder));
+    } catch {
+      // sessionStorage restricted
     }
+
+    setLastPlacedOrder(confirmedOrder);
+    clearCart();
+    return confirmedOrder;
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, adminNote?: string) => {
-    const ord = orders.find((o) => o.id === orderId);
-    if (!ord) return;
+    const res = await apiRequest<{ order: Order }>(`/api/orders/${encodeURIComponent(orderId)}/status`, {
+      method: 'PATCH',
+      requireAuth: true,
+      body: { orderStatus: status, adminNote },
+    });
 
-    const notes = ord.internalNotes || [];
-    if (adminNote) {
-      notes.push(`[${new Date().toLocaleDateString()}] ${adminNote}`);
-    }
-
-    const updates: Partial<Order> = {
-      orderStatus: status,
-      internalNotes: notes,
-      paymentStatus: status === 'Delivered' && ord.paymentMethod === 'COD' ? 'Paid' : ord.paymentStatus,
-    };
-
-    try {
-      const { db_updateOrderStatus } = await import('../services/firestoreService');
-      await db_updateOrderStatus(orderId, updates);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
+    if (res?.order) {
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? res.order : o)));
     }
   };
 
-  const submitWholesaleInquiry = async (inquiryData: Omit<WholesaleInquiry, 'id' | 'createdAt' | 'status'>) => {
-    const newInquiry: WholesaleInquiry = {
-      ...inquiryData,
-      id: `whl-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      status: 'New',
-    };
-
-    try {
-      const { db_submitWholesaleInquiry } = await import('../services/firestoreService');
-      await db_submitWholesaleInquiry(newInquiry);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `wholesale_inquiries/${newInquiry.id}`);
-    }
+  const submitWholesaleInquiry = async (
+    inquiryData: Omit<WholesaleInquiry, 'id' | 'createdAt' | 'status'>
+  ) => {
+    await apiRequest('/api/wholesale', {
+      method: 'POST',
+      body: inquiryData,
+    });
   };
 
   const updateWholesaleStatus = async (inquiryId: string, status: WholesaleInquiry['status']) => {
-    try {
-      const { db_updateWholesaleStatus } = await import('../services/firestoreService');
-      await db_updateWholesaleStatus(inquiryId, status);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `wholesale_inquiries/${inquiryId}`);
-    }
+    await apiRequest(`/api/wholesale/${encodeURIComponent(inquiryId)}`, {
+      method: 'PATCH',
+      requireAuth: true,
+      body: { status },
+    });
+    setWholesaleInquiries((prev) =>
+      prev.map((w) => (w.id === inquiryId ? { ...w, status } : w))
+    );
   };
 
   const deleteWholesaleInquiry = async (inquiryId: string) => {
-    try {
-      const { db_deleteWholesaleInquiry } = await import('../services/firestoreService');
-      await db_deleteWholesaleInquiry(inquiryId);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `wholesale_inquiries/${inquiryId}`);
-    }
+    await apiRequest(`/api/wholesale/${encodeURIComponent(inquiryId)}`, {
+      method: 'DELETE',
+      requireAuth: true,
+    });
+    setWholesaleInquiries((prev) => prev.filter((w) => w.id !== inquiryId));
   };
 
   const signInWithGoogle = async () => {
@@ -563,101 +628,93 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
   };
 
-  const addReview = async (review: Omit<CustomerReview, 'id' | 'date' | 'status'>) => {
-    const newRev: CustomerReview = {
-      ...review,
-      id: `rev-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      status: 'approved',
+  const addReview = async (review: AddReviewPayload) => {
+    const res = await apiRequest<{ success: boolean; message: string; review?: CustomerReview }>('/api/reviews', {
+      method: 'POST',
+      body: review,
+    });
+    return {
+      success: true,
+      message: res.message || 'Review submitted for moderation.',
     };
+  };
 
-    try {
-      const { db_addReview, db_updateProduct } = await import('../services/firestoreService');
-      await db_addReview(newRev);
+  const moderateReview = async (reviewId: string, status: CustomerReview['status']) => {
+    await apiRequest(`/api/reviews/${encodeURIComponent(reviewId)}`, {
+      method: 'PATCH',
+      requireAuth: true,
+      body: { status },
+    });
+    setReviews((prev) => prev.map((r) => (r.id === reviewId ? { ...r, status } : r)));
+  };
 
-      // Update product rating
-      const prod = products.find((p) => p.id === review.productId);
-      if (prod) {
-        const prodReviews = [...reviews.filter((r) => r.productId === prod.id), newRev];
-        const avg = prodReviews.reduce((acc, r) => acc + r.rating, 0) / prodReviews.length;
-        await db_updateProduct({
-          ...prod,
-          rating: Number(avg.toFixed(1)),
-          reviewCount: prodReviews.length,
-        });
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `reviews/${newRev.id}`);
-    }
+  const deleteReview = async (reviewId: string) => {
+    await apiRequest(`/api/reviews/${encodeURIComponent(reviewId)}`, {
+      method: 'DELETE',
+      requireAuth: true,
+    });
+    setReviews((prev) => prev.filter((r) => r.id !== reviewId));
   };
 
   const updateSettings = async (newSettings: Partial<StoreSettings>) => {
-    try {
-      const { db_updateSettings } = await import('../services/firestoreService');
-      await db_updateSettings(newSettings);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'settings/main');
+    const res = await apiRequest<{ settings: StoreSettings }>('/api/settings', {
+      method: 'PUT',
+      requireAuth: true,
+      body: newSettings,
+    });
+    if (res?.settings) {
+      setSettings(res.settings);
     }
   };
 
   const updateProduct = async (updated: Product) => {
-    // Optimistic local state update
+    await apiRequest(`/api/products/${encodeURIComponent(updated.id)}`, {
+      method: 'PUT',
+      requireAuth: true,
+      body: updated,
+    });
     setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-    try {
-      const { db_updateProduct } = await import('../services/firestoreService');
-      await db_updateProduct(updated);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `products/${updated.id}`);
-    }
   };
 
   const addNewProduct = async (product: Product) => {
-    // Optimistic local state update
+    await apiRequest('/api/products', {
+      method: 'POST',
+      requireAuth: true,
+      body: product,
+    });
     setProducts((prev) => [product, ...prev]);
-    try {
-      const { db_updateProduct } = await import('../services/firestoreService');
-      await db_updateProduct(product);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `products/${product.id}`);
-    }
   };
 
   const deleteProduct = async (productId: string) => {
-    // Optimistic local state update
+    await apiRequest(`/api/products/${encodeURIComponent(productId)}`, {
+      method: 'DELETE',
+      requireAuth: true,
+    });
     setProducts((prev) => prev.filter((p) => p.id !== productId));
-    try {
-      const { db_deleteProduct } = await import('../services/firestoreService');
-      await db_deleteProduct(productId);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `products/${productId}`);
-    }
   };
 
   const recordProductView = async (productId: string) => {
-    // Avoid double counting in the same session
     try {
       const viewedKey = `viewed_prod_${productId}`;
-      const sessionViewed = sessionStorage.getItem(viewedKey);
-      if (sessionViewed) {
+      if (sessionStorage.getItem(viewedKey)) {
         return;
       }
       sessionStorage.setItem(viewedKey, 'true');
     } catch {
-      // In case sessionStorage is restricted in iframe/private mode
+      // sessionStorage restricted
     }
 
-    // Optimistic local increment
     setProducts((prev) =>
-      prev.map((p) =>
-        p.id === productId ? { ...p, viewCount: (p.viewCount || 0) + 1 } : p
-      )
+      prev.map((p) => (p.id === productId ? { ...p, viewCount: (p.viewCount || 0) + 1 } : p))
     );
 
     try {
-      const { db_incrementProductView } = await import('../services/firestoreService');
-      await db_incrementProductView(productId);
+      await fetch(`/api/products/${encodeURIComponent(productId)}/view`, {
+        method: 'POST',
+        keepalive: true,
+      });
     } catch {
-      // Background counter sync failure is non-blocking
+      // Non-blocking analytics failure
     }
   };
 
@@ -666,36 +723,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ...coupon,
       code: coupon.code.toUpperCase().trim().replace(/[^A-Z0-9_-]/g, ''),
     };
-    setCoupons((prev) => [formatted, ...prev.filter((c) => c.code !== formatted.code)]);
-    try {
-      const { db_addCoupon } = await import('../services/firestoreService');
-      await db_addCoupon(formatted);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `coupons/${formatted.code}`);
-    }
+    const res = await apiRequest<{ coupon: Coupon }>('/api/coupons', {
+      method: 'POST',
+      requireAuth: true,
+      body: formatted,
+    });
+    const saved = res?.coupon || formatted;
+    setCoupons((prev) => [saved, ...prev.filter((c) => c.code !== saved.code)]);
   };
 
   const toggleCoupon = async (code: string) => {
-    const coupon = coupons.find((c) => c.code === code);
-    if (!coupon) return;
-    const updated = { ...coupon, isActive: !coupon.isActive };
-    setCoupons((prev) => prev.map((c) => (c.code === code ? updated : c)));
-    try {
-      const { db_addCoupon } = await import('../services/firestoreService');
-      await db_addCoupon(updated);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `coupons/${code}`);
-    }
+    const res = await apiRequest<{ isActive: boolean }>(`/api/coupons/${encodeURIComponent(code)}/toggle`, {
+      method: 'PATCH',
+      requireAuth: true,
+    });
+    setCoupons((prev) =>
+      prev.map((c) => (c.code === code ? { ...c, isActive: Boolean(res?.isActive) } : c))
+    );
   };
 
   const deleteCoupon = async (code: string) => {
+    await apiRequest(`/api/coupons/${encodeURIComponent(code)}`, {
+      method: 'DELETE',
+      requireAuth: true,
+    });
     setCoupons((prev) => prev.filter((c) => c.code !== code));
-    try {
-      const { db_deleteCoupon } = await import('../services/firestoreService');
-      await db_deleteCoupon(code);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `coupons/${code}`);
-    }
   };
 
   const addCategory = async (newCat: { name: string; image?: string; description?: string }) => {
@@ -703,7 +755,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!trimmedName) {
       return { success: false, message: 'Category name cannot be empty.' };
     }
-
     const catId = trimmedName
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -712,7 +763,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!catId) {
       return { success: false, message: 'Invalid category name.' };
     }
-
     if (categoriesList.some((c) => c.id === catId || c.name.toLowerCase() === trimmedName.toLowerCase())) {
       return { success: false, message: `Category "${trimmedName}" already exists.` };
     }
@@ -725,60 +775,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isSystem: false,
     };
 
-    setCategoriesList((prev) => [...prev, itemToSave]);
-
     try {
-      const { db_addCategory } = await import('../services/firestoreService');
-      await db_addCategory(itemToSave);
-    } catch {
-      // Local fallback in localStorage
+      await apiRequest('/api/categories', {
+        method: 'POST',
+        requireAuth: true,
+        body: itemToSave,
+      });
+      setCategoriesList((prev) => [...prev, itemToSave]);
+      return { success: true, message: `Category "${trimmedName}" created successfully!` };
+    } catch (err) {
+      return {
+        success: false,
+        message: err instanceof Error ? err.message : 'Failed to create category.',
+      };
     }
-
-    return { success: true, message: `Category "${trimmedName}" created successfully!` };
-  };
-
-  const [shahiMixBoxes, setShahiMixBoxes] = useState<ShahiMixBox[]>(() => {
-    const saved = localStorage.getItem('zds_shahi_boxes');
-    return saved ? JSON.parse(saved) : INITIAL_SHAHI_MIX_BOXES;
-  });
-
-  const [shahiMixIngredients, setShahiMixIngredients] = useState<ShahiMixIngredient[]>(() => {
-    const saved = localStorage.getItem('zds_shahi_ingredients');
-    return saved ? JSON.parse(saved) : INITIAL_SHAHI_MIX_INGREDIENTS;
-  });
-
-  const [unboxingReviews] = useState<UnboxingReview[]>(INITIAL_UNBOXING_REVIEWS);
-
-  useEffect(() => {
-    localStorage.setItem('zds_shahi_boxes', JSON.stringify(shahiMixBoxes));
-  }, [shahiMixBoxes]);
-
-  useEffect(() => {
-    localStorage.setItem('zds_shahi_ingredients', JSON.stringify(shahiMixIngredients));
-  }, [shahiMixIngredients]);
-
-  const addShahiMixBox = (box: ShahiMixBox) => {
-    setShahiMixBoxes((prev) => [box, ...prev.filter((b) => b.id !== box.id)]);
-  };
-
-  const updateShahiMixBox = (box: ShahiMixBox) => {
-    setShahiMixBoxes((prev) => prev.map((b) => (b.id === box.id ? box : b)));
-  };
-
-  const deleteShahiMixBox = (boxId: string) => {
-    setShahiMixBoxes((prev) => prev.filter((b) => b.id !== boxId));
-  };
-
-  const addShahiMixIngredient = (ingredient: ShahiMixIngredient) => {
-    setShahiMixIngredients((prev) => [ingredient, ...prev.filter((i) => i.id !== ingredient.id)]);
-  };
-
-  const updateShahiMixIngredient = (ingredient: ShahiMixIngredient) => {
-    setShahiMixIngredients((prev) => prev.map((i) => (i.id === ingredient.id ? ingredient : i)));
-  };
-
-  const deleteShahiMixIngredient = (ingredientId: string) => {
-    setShahiMixIngredients((prev) => prev.filter((i) => i.id !== ingredientId));
   };
 
   const deleteCategory = async (categoryId: string) => {
@@ -786,17 +796,85 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!found) {
       return { success: false, message: 'Category not found.' };
     }
-
-    setCategoriesList((prev) => prev.filter((c) => c.id !== categoryId));
-
     try {
-      const { db_deleteCategory } = await import('../services/firestoreService');
-      await db_deleteCategory(categoryId);
-    } catch {
-      // Local fallback
+      await apiRequest(`/api/categories/${encodeURIComponent(categoryId)}`, {
+        method: 'DELETE',
+        requireAuth: true,
+      });
+      setCategoriesList((prev) => prev.filter((c) => c.id !== categoryId));
+      return { success: true, message: `Category "${found.name}" removed successfully!` };
+    } catch (err) {
+      return {
+        success: false,
+        message: err instanceof Error ? err.message : 'Failed to remove category.',
+      };
     }
+  };
 
-    return { success: true, message: `Category "${found.name}" removed successfully!` };
+  const addShahiMixBox = async (box: ShahiMixBox) => {
+    await apiRequest('/api/shahi-mix/boxes', {
+      method: 'POST',
+      requireAuth: true,
+      body: box,
+    });
+    setShahiMixBoxes((prev) => [box, ...prev.filter((b) => b.id !== box.id)]);
+  };
+
+  const updateShahiMixBox = async (box: ShahiMixBox) => {
+    await apiRequest('/api/shahi-mix/boxes', {
+      method: 'POST',
+      requireAuth: true,
+      body: box,
+    });
+    setShahiMixBoxes((prev) => prev.map((b) => (b.id === box.id ? box : b)));
+  };
+
+  const deleteShahiMixBox = async (boxId: string) => {
+    await apiRequest(`/api/shahi-mix/boxes/${encodeURIComponent(boxId)}`, {
+      method: 'DELETE',
+      requireAuth: true,
+    });
+    setShahiMixBoxes((prev) => prev.filter((b) => b.id !== boxId));
+  };
+
+  const addShahiMixIngredient = async (ingredient: ShahiMixIngredient) => {
+    await apiRequest('/api/shahi-mix/ingredients', {
+      method: 'POST',
+      requireAuth: true,
+      body: ingredient,
+    });
+    setShahiMixIngredients((prev) => [ingredient, ...prev.filter((i) => i.id !== ingredient.id)]);
+  };
+
+  const updateShahiMixIngredient = async (ingredient: ShahiMixIngredient) => {
+    await apiRequest('/api/shahi-mix/ingredients', {
+      method: 'POST',
+      requireAuth: true,
+      body: ingredient,
+    });
+    setShahiMixIngredients((prev) => prev.map((i) => (i.id === ingredient.id ? ingredient : i)));
+  };
+
+  const deleteShahiMixIngredient = async (ingredientId: string) => {
+    await apiRequest(`/api/shahi-mix/ingredients/${encodeURIComponent(ingredientId)}`, {
+      method: 'DELETE',
+      requireAuth: true,
+    });
+    setShahiMixIngredients((prev) => prev.filter((i) => i.id !== ingredientId));
+  };
+
+  const backfillCatalogToFirestore = async () => {
+    const res = await apiRequest<{ createdMissingDocs: number }>('/api/settings/backfill', {
+      method: 'POST',
+      requireAuth: true,
+      body: {
+        categories: INITIAL_CATEGORIES,
+        shahiBoxes: INITIAL_SHAHI_MIX_BOXES,
+        shahiIngredients: INITIAL_SHAHI_MIX_INGREDIENTS,
+        products: INITIAL_PRODUCTS,
+      },
+    });
+    return { createdMissingDocs: res.createdMissingDocs ?? 0 };
   };
 
   return (
@@ -855,6 +933,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         signOutUser,
         toggleWishlist,
         addReview,
+        moderateReview,
+        deleteReview,
         updateSettings,
         updateProduct,
         addNewProduct,
@@ -871,13 +951,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addShahiMixIngredient,
         updateShahiMixIngredient,
         deleteShahiMixIngredient,
+        backfillCatalogToFirestore,
       }}
     >
       {children}
     </StoreContext.Provider>
   );
 };
-
 
 export const useStore = () => {
   const context = useContext(StoreContext);

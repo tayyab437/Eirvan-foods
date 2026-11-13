@@ -93,6 +93,20 @@ export interface Product {
   viewCount?: number;
 }
 
+export interface CustomBuildEntry {
+  ingredientId: string;
+  weightLabel?: string;
+  portionId?: string;
+  multiplier?: number;
+}
+
+export interface CustomBuildSpec {
+  kind: 'custom-mix' | 'shahi-box';
+  title?: string;
+  boxId?: string;
+  items: CustomBuildEntry[];
+}
+
 export interface CartItem {
   productId: string;
   productName: string;
@@ -105,6 +119,7 @@ export interface CartItem {
   maxStock: number;
   customGiftNote?: string;
   boxStyle?: string;
+  customBuild?: CustomBuildSpec;
 }
 
 export type OrderStatus =
@@ -123,6 +138,7 @@ export type PaymentStatus = 'Pending' | 'Paid' | 'Failed' | 'Refunded';
 export interface OrderItem {
   productId: string;
   productName: string;
+  variantId?: string;
   variantWeight: string;
   sku: string;
   price: number;
@@ -150,10 +166,13 @@ export interface Order {
   couponCode?: string;
   totalAmount: number;
   paymentMethod: PaymentMethod;
+  paymentReference?: string;
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
   trackingNumber?: string;
+  trackingToken?: string;
   courier?: string; // "TCS", "Leopard Courier", "M&P", "Trax"
+  stockRestored?: boolean;
   internalNotes?: string[];
 }
 

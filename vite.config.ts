@@ -45,6 +45,7 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
+          navigateFallbackDenylist: [/^\/api\//],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
           runtimeCaching: [
             {
@@ -75,16 +76,6 @@ export default defineConfig(() => {
                 cacheableResponse: { statuses: [0, 200] },
               },
             },
-            {
-              // Cache Netlify HUD and related scripts
-              urlPattern: /.*netlify\.app\/.*scripts\/hud.*/i,
-              handler: 'StaleWhileRevalidate',
-              options: {
-                cacheName: 'netlify-scripts-cache',
-                expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 * 7 },
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
           ],
         },
         devOptions: {
@@ -99,7 +90,7 @@ export default defineConfig(() => {
       },
     },
     build: {
-      sourcemap: true,
+      sourcemap: false,
       rollupOptions: {
         output: {
           // Allow Vite to perform natural code splitting for better tree-shaking and reduced unused JS

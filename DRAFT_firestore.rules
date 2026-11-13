@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // STAGED PRODUCTION RULES — DO NOT DEPLOY UNTIL AUTHENTICATED ADMIN UID DOCS
+    // (/admins/{uid}) AND PHP BACKEND ROUTES ARE VERIFIED ON IONOS.
+    // All privileged writes (orders, tracking, reviews, coupons, wholesale, inventory,
+    // and store settings) are executed server-side by PHP via Google Service Account OAuth2.
+
+    // Global Safety Net: Default-deny all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Strict DB-backed Admin Role Verification (no hardcoded personal email)
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // 0. Admins Registry (Signed-in user can check own admin status doc; no public listing/writes)
+    match /admins/{uid} {
+      allow get: if isSignedIn() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+
+    // 1. Products Collection (Public read, Admin read/write via PHP or authenticated Admin Console)
+    match /products/{productId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(productId) && isAdmin();
+    }
+
+    // 2. Categories Collection (Public read, Admin write only)
+    match /categories/{categoryId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(categoryId) && isAdmin();
+    }
+
+    // 3. Shahi Mix Boxes & Ingredients (Public read, Admin write only)
+    match /shahi_boxes/{boxId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(boxId) && isAdmin();
+    }
+
+    match /shahi_ingredients/{ingredientId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(ingredientId) && isAdmin();
+    }
+
+    // 4. Settings Collection (Public storefront read, Admin write only)
+    match /settings/{settingId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(settingId) && isAdmin();
+    }
+
+    // 5. Orders Collection (Zero public access; Admin list/get only; ALL creates/updates via PHP backend)
+    match /orders/{orderId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // 6. Order Idempotency Keys (Backend-only via Service Account)
+    match /order_idempotency/{idempotencyKey} {
+      allow read, write: if false;
+    }
+
+    // 7. Reviews Collection (Public read ONLY when approved; creation & moderation via PHP backend)
+    match /reviews/{reviewId} {
+      allow get, list: if (resource != null && resource.data.status == 'approved') || isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // 8. Coupons Collection (Admin read/write only; public validation runs through POST /api/coupons/validate)
+    match /coupons/{couponId} {
+      allow get, list, create, update, delete: if isValidId(couponId) && isAdmin();
+    }
+
+    // 9. Wholesale Inquiries Collection (Admin read only; submission & status updates via PHP backend)
+    match /wholesale_inquiries/{inquiryId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+  }
+}

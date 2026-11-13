@@ -1,13 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { Product, OrderStatus, ProductVariant, Coupon } from '../types';
+import { Product, Order, OrderStatus, ProductVariant, Coupon, StoreSettings } from '../types';
+import { buildSafeCsv } from '../utils/csvExport';
 import {
   IONOS_MYSQL_SCHEMA,
   IONOS_SEED_DATA,
   IONOS_HTACCESS,
   IONOS_PHP_DATABASE_CONFIG,
-  IONOS_PHP_INDEX,
 } from '../services/ionosExport';
 import {
   BarChart3,
@@ -75,13 +75,15 @@ export const AdminDashboard: React.FC = () => {
     wholesaleInquiries,
     updateWholesaleStatus,
     deleteWholesaleInquiry,
+    moderateReview,
+    deleteReview,
+    backfillCatalogToFirestore,
     currentUser,
     isAuthReady,
     isAdminUser,
     signInWithGoogle,
     signOutUser,
     isFirebaseSyncing,
-    firebaseConnected,
   } = useStore();
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
@@ -150,6 +152,22 @@ export const AdminDashboard: React.FC = () => {
 
   // Copy notification state
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+
+  // Order quick inspector / receipt modal
+  const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
+
+  // Buffered Store Settings state
+  const [settingsForm, setSettingsForm] = useState<StoreSettings>(settings);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsFeedback, setSettingsFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Non-destructive catalog backfill state
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSettingsForm(settings);
+  }, [settings]);
 
   // Calculations for analytics
   const totalRevenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
@@ -309,25 +327,21 @@ export const AdminDashboard: React.FC = () => {
 
   const handleExportOrders = () => {
     const headers = ['Order Number', 'Date', 'Customer Name', 'Phone', 'City', 'Address', 'Items', 'Total Amount', 'Payment', 'Status'];
-    const rows = filteredOrders.map(o => [
+    const rows = filteredOrders.map((o) => [
       o.orderNumber,
       new Date(o.createdAt).toLocaleDateString(),
       o.customerName,
-      `'${o.customerPhone}`, // Add quote to prevent Excel from scientific notation
+      o.customerPhone,
       o.city,
-      o.address.replace(/,/g, ' '),
-      o.items.map(it => `${it.productName} (${it.variantWeight} x ${it.quantity})`).join(' | '),
+      o.address,
+      o.items.map((it) => `${it.productName} (${it.variantWeight} x ${it.quantity})`).join(' | '),
       o.totalAmount,
       o.paymentMethod,
-      o.orderStatus
+      o.orderStatus,
     ]);
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(r => r.join(','))
-    ].join('\n');
-
-    handleDownloadFile(csvContent, `eirvan_orders_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+    const csvContent = buildSafeCsv(headers, rows);
+    handleDownloadFile(csvContent, `eirvan_orders_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8');
   };
 
   const handleAdminGoogleSignIn = async () => {
@@ -2029,6 +2043,7 @@ export const AdminDashboard: React.FC = () => {
                 <option value="Packed">Packed</option>
                 <option value="Shipped">Shipped</option>
                 <option value="Delivered">Delivered</option>
+                <option value="Returned">Returned</option>
                 <option value="Cancelled">Cancelled</option>
               </select>
 
@@ -2139,15 +2154,29 @@ export const AdminDashboard: React.FC = () => {
                             <option value="Packed">Packed</option>
                             <option value="Shipped">Shipped</option>
                             <option value="Delivered">Delivered</option>
+                            <option value="Returned">Returned</option>
                             <option value="Cancelled">Cancelled</option>
                           </select>
                         </td>
                         <td className="p-2 text-right">
                           <div className="flex items-center justify-end space-x-1">
-                            <button className="p-1 rounded bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-500 transition-colors">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInspectingOrder(ord);
+                                setTimeout(() => window.print(), 150);
+                              }}
+                              title="Inspect & Print Order Slip"
+                              className="p-1 rounded bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-600 transition-colors cursor-pointer"
+                            >
                               <Printer className="w-3 h-3" />
                             </button>
-                            <button className="p-1 rounded bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-500 transition-colors">
+                            <button
+                              type="button"
+                              onClick={() => setInspectingOrder(ord)}
+                              title="Inspect Full Order Details"
+                              className="p-1 rounded bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-600 transition-colors cursor-pointer"
+                            >
                               <Eye className="w-3 h-3" />
                             </button>
                           </div>
@@ -2257,20 +2286,19 @@ export const AdminDashboard: React.FC = () => {
             </div>
             <button 
               onClick={() => {
-                const csv = [
-                  ['Company', 'Contact', 'Type', 'Quantity', 'Phone', 'Email', 'Status', 'Date'].join(','),
-                  ...wholesaleInquiries.map(w => [
-                    w.companyName,
-                    w.contactName,
-                    w.inquiryType,
-                    w.estimatedQuantity,
-                    w.phone,
-                    w.email,
-                    w.status,
-                    new Date(w.createdAt).toLocaleDateString()
-                  ].join(','))
-                ].join('\n');
-                handleDownloadFile(csv, `wholesale_leads_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+                const headers = ['Company', 'Contact', 'Type', 'Quantity', 'Phone', 'Email', 'Status', 'Date'];
+                const rows = wholesaleInquiries.map((w) => [
+                  w.companyName,
+                  w.contactName,
+                  w.inquiryType,
+                  w.estimatedQuantity,
+                  w.phone,
+                  w.email,
+                  w.status,
+                  new Date(w.createdAt).toLocaleDateString(),
+                ]);
+                const csv = buildSafeCsv(headers, rows);
+                handleDownloadFile(csv, `wholesale_leads_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8');
               }}
               className="px-4 py-2 bg-white border border-[#E8DDCA] text-[#244C37] text-xs font-bold rounded-xl flex items-center space-x-2 hover:bg-[#F8F5ED] cursor-pointer"
             >
@@ -2557,41 +2585,136 @@ export const AdminDashboard: React.FC = () => {
       {/* TAB 6: REVIEWS MODERATION */}
       {activeTab === 'reviews' && (
         <div className="py-6 space-y-4">
-          {reviews.map((rev) => (
-            <div
-              key={rev.id}
-              className="p-4 bg-white rounded-2xl border border-[#E8DDCA] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-            >
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="font-bold text-[#242821]">
-                    {rev.customerName}
-                  </span>
-                  <span className="text-gray-400">• {rev.city}</span>
-                  <span className="text-[#C99A45] font-bold">★ {rev.rating}/5</span>
-                </div>
-                <p className="text-gray-600 mt-1 italic">&quot;{rev.comment}&quot;</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">
-                  Product: {rev.productName} • Date: {rev.date}
-                </p>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full">
-                  Approved & Public
-                </span>
-              </div>
+          {reviews.length === 0 ? (
+            <div className="p-8 bg-white rounded-2xl border border-[#E8DDCA] text-center text-xs text-gray-500">
+              No customer reviews submitted yet.
             </div>
-          ))}
+          ) : (
+            reviews.map((rev) => (
+              <div
+                key={rev.id}
+                className="p-4 bg-white rounded-2xl border border-[#E8DDCA] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+              >
+                <div>
+                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                    <span className="font-bold text-[#242821]">
+                      {rev.customerName}
+                    </span>
+                    <span className="text-gray-400">• {rev.city}</span>
+                    <span className="text-[#C99A45] font-bold">★ {rev.rating}/5</span>
+                    {rev.verifiedPurchase && (
+                      <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
+                        Verified Order
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-600 mt-1 italic">&quot;{rev.comment}&quot;</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    Product: {rev.productName} • Date: {rev.date}
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-2 shrink-0 flex-wrap gap-y-1">
+                  <span
+                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                      rev.status === 'approved'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : rev.status === 'rejected'
+                        ? 'bg-rose-100 text-rose-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {rev.status === 'approved'
+                      ? 'Approved & Public'
+                      : rev.status === 'rejected'
+                      ? 'Rejected'
+                      : 'Pending Moderation'}
+                  </span>
+
+                  {rev.status !== 'approved' && (
+                    <button
+                      type="button"
+                      onClick={() => moderateReview(rev.id, 'approved')}
+                      className="px-2.5 py-1 bg-[#244C37] hover:bg-[#1A3828] text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                    >
+                      Approve
+                    </button>
+                  )}
+
+                  {rev.status !== 'rejected' && (
+                    <button
+                      type="button"
+                      onClick={() => moderateReview(rev.id, 'rejected')}
+                      className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[11px] font-bold cursor-pointer"
+                    >
+                      Reject
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Delete review by ${rev.customerName}?`)) {
+                        deleteReview(rev.id);
+                      }
+                    }}
+                    className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg border border-rose-200 cursor-pointer"
+                    title="Delete Review"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
       {/* TAB 7: SETTINGS */}
       {activeTab === 'settings' && (
-        <div className="py-6 max-w-2xl bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DDCA] shadow-xs space-y-4">
-          <h3 className="font-serif text-lg font-bold text-[#244C37]">
-            Store & Logistics Configuration
-          </h3>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setSavingSettings(true);
+            setSettingsFeedback(null);
+            try {
+              await updateSettings(settingsForm);
+              setSettingsFeedback({ type: 'success', text: 'Store settings saved securely to Firestore.' });
+            } catch (err: unknown) {
+              setSettingsFeedback({
+                type: 'error',
+                text: err instanceof Error ? err.message : 'Failed to save store settings.',
+              });
+            } finally {
+              setSavingSettings(false);
+            }
+          }}
+          className="py-6 max-w-2xl bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DDCA] shadow-xs space-y-5"
+        >
+          <div className="flex items-center justify-between border-b border-[#E8DDCA] pb-3">
+            <h3 className="font-serif text-lg font-bold text-[#244C37]">
+              Store &amp; Logistics Configuration
+            </h3>
+            <button
+              type="submit"
+              disabled={savingSettings}
+              className="px-4 py-2 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 shadow-sm"
+            >
+              {savingSettings ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
+
+          {settingsFeedback && (
+            <div
+              className={`p-3 rounded-xl text-xs font-semibold ${
+                settingsFeedback.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}
+            >
+              {settingsFeedback.text}
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-bold text-[#242821] block mb-1">
@@ -2599,8 +2722,9 @@ export const AdminDashboard: React.FC = () => {
             </label>
             <input
               type="text"
-              value={settings.storeName}
-              onChange={(e) => updateSettings({ storeName: e.target.value })}
+              required
+              value={settingsForm.storeName}
+              onChange={(e) => setSettingsForm({ ...settingsForm, storeName: e.target.value })}
               className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
             />
           </div>
@@ -2608,12 +2732,39 @@ export const AdminDashboard: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-[#242821] block mb-1">
+                Contact Phone:
+              </label>
+              <input
+                type="text"
+                required
+                value={settingsForm.contactPhone}
+                onChange={(e) => setSettingsForm({ ...settingsForm, contactPhone: e.target.value })}
+                className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-[#242821] block mb-1">
                 WhatsApp Hotline:
               </label>
               <input
                 type="text"
-                value={settings.whatsappNumber}
-                onChange={(e) => updateSettings({ whatsappNumber: e.target.value })}
+                required
+                value={settingsForm.whatsappNumber}
+                onChange={(e) => setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })}
+                className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs font-bold text-[#242821] block mb-1">
+                Contact Email:
+              </label>
+              <input
+                type="email"
+                value={settingsForm.contactEmail}
+                onChange={(e) => setSettingsForm({ ...settingsForm, contactEmail: e.target.value })}
                 className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
               />
             </div>
@@ -2623,9 +2774,24 @@ export const AdminDashboard: React.FC = () => {
               </label>
               <input
                 type="number"
-                value={settings.freeShippingThreshold}
+                min={0}
+                value={settingsForm.freeShippingThreshold}
                 onChange={(e) =>
-                  updateSettings({ freeShippingThreshold: Number(e.target.value) })
+                  setSettingsForm({ ...settingsForm, freeShippingThreshold: Number(e.target.value) })
+                }
+                className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-[#242821] block mb-1">
+                Standard Shipping Rate (PKR):
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={settingsForm.standardShippingRate}
+                onChange={(e) =>
+                  setSettingsForm({ ...settingsForm, standardShippingRate: Number(e.target.value) })
                 }
                 className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
               />
@@ -2638,14 +2804,36 @@ export const AdminDashboard: React.FC = () => {
             </label>
             <input
               type="text"
-              value={settings.announcementBarMessage}
+              value={settingsForm.announcementBarMessage}
               onChange={(e) =>
-                updateSettings({ announcementBarMessage: e.target.value })
+                setSettingsForm({ ...settingsForm, announcementBarMessage: e.target.value })
               }
               className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
             />
           </div>
-        </div>
+
+          <div className="flex flex-wrap gap-6 pt-2 text-xs">
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settingsForm.codEnabled}
+                onChange={(e) => setSettingsForm({ ...settingsForm, codEnabled: e.target.checked })}
+                className="rounded text-[#244C37]"
+              />
+              <span className="font-semibold text-[#242821]">Enable Cash on Delivery (COD)</span>
+            </label>
+
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settingsForm.announcementActive}
+                onChange={(e) => setSettingsForm({ ...settingsForm, announcementActive: e.target.checked })}
+                className="rounded text-[#244C37]"
+              />
+              <span className="font-semibold text-[#242821]">Show Top Announcement Bar</span>
+            </label>
+          </div>
+        </form>
       )}
 
       {/* TAB 8: IONOS SHARED HOSTING EXPORT CENTER */}
@@ -2807,19 +2995,50 @@ export const AdminDashboard: React.FC = () => {
             </pre>
           </div>
 
+          {/* Non-Destructive Firestore Catalog Initialization */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DDCA] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="font-serif text-lg font-bold text-[#242821]">
+                Initialize Missing Firestore Catalog Collections (Safe Backfill)
+              </h3>
+              <p className="text-xs text-gray-500 max-w-2xl">
+                Creates missing category, Shahi box packaging, ingredient, or starter product documents in Firestore without modifying or overwriting any existing records.
+              </p>
+              {backfillMsg && (
+                <p className="text-xs font-semibold text-emerald-700 pt-1">{backfillMsg}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              disabled={backfilling}
+              onClick={async () => {
+                setBackfilling(true);
+                setBackfillMsg(null);
+                try {
+                  const res = await backfillCatalogToFirestore();
+                  setBackfillMsg(`Safe backfill completed: ${res.createdMissingDocs} missing catalog document(s) created.`);
+                } catch (err: unknown) {
+                  setBackfillMsg(err instanceof Error ? err.message : 'Backfill failed.');
+                } finally {
+                  setBackfilling(false);
+                }
+              }}
+              className="px-4 py-2.5 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl shrink-0 cursor-pointer disabled:opacity-50"
+            >
+              {backfilling ? 'Checking Firestore...' : 'Backfill Missing Docs'}
+            </button>
+          </div>
+
           {/* Section 4: IONOS Deployment Checklist */}
           <div className="bg-[#F8F5ED] p-6 sm:p-8 rounded-3xl border border-[#E8DDCA] space-y-3">
             <h3 className="font-serif text-lg font-bold text-[#244C37]">
-              IONOS Shared Hosting Deployment Checklist:
+              IONOS Plus Webspace Single-Hosting Deployment Checklist (PHP 8.2 + Firestore REST):
             </h3>
             <ol className="list-decimal list-inside space-y-2 text-xs text-gray-700 leading-relaxed">
-              <li>Log in to your <strong>IONOS Cloud / Hosting Panel</strong> and navigate to <strong>Databases &gt; MySQL</strong>.</li>
-              <li>Create a new database (e.g. `zauq_db`), noting the Database Host (`db50XXXXXX.hosting-data.io`), Username, and Password.</li>
-              <li>Open <strong>phpMyAdmin</strong> from your IONOS dashboard and import the downloaded `zauq_ecommerce_schema_26_tables.sql` followed by `zauq_seed_data.sql`.</li>
-              <li>Connect via <strong>SFTP / WebFTP</strong> to the IONOS root and copy the files into your `public_html` directory.</li>
-              <li>Update `config/database.php` with your IONOS database host and credentials.</li>
-              <li>Ensure PHP version is set to <strong>PHP 8.2 or 8.3</strong> in IONOS Domain Settings.</li>
-              <li>Your store is live! Access the admin panel at `https://yourdomain.com/admin` with default credentials: `eirvanfoods@gmail.com` / `Admin@Zauq2026!`.</li>
+              <li>Build the IONOS bundle locally with <strong>npm run build:ionos</strong> to populate <strong>public_html/</strong>.</li>
+              <li>Ensure <strong>private/</strong> and <strong>backend/</strong> live above or isolated from web root, copying <strong>private/config/secrets.example.php</strong> to <strong>private/config/secrets.php</strong> and placing your Google Service Account JSON inside <strong>private/credentials/service-account.json</strong>.</li>
+              <li>Ensure PHP version is set to <strong>PHP 8.1+ (8.2/8.3 recommended)</strong> in IONOS Domain Settings with <strong>curl</strong> and <strong>openssl</strong> enabled.</li>
+              <li>Verify <strong>/api/health</strong> returns HTTP 200 and verify admin sign-in via Firebase Auth Google Sign-In matching an active UID document under Firestore <strong>/admins/&#123;uid&#125;</strong>.</li>
             </ol>
           </div>
         </div>
@@ -3368,6 +3587,88 @@ export const AdminDashboard: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Order Inspector Modal */}
+      {inspectingOrder && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-[#E8DDCA] overflow-hidden my-8">
+            <div className="p-6 border-b border-[#E8DDCA] flex items-center justify-between bg-[#F8F5ED]">
+              <div>
+                <span className="text-[11px] font-mono uppercase tracking-wider text-[#B69A62] font-bold">
+                  Consignment Detail Slip
+                </span>
+                <h2 className="font-serif text-xl font-bold text-[#242821] mt-0.5">
+                  {inspectingOrder.orderNumber}
+                </h2>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 bg-[#244C37] text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInspectingOrder(null)}
+                  className="p-2 rounded-full hover:bg-gray-200 text-gray-500 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#F8F5ED] p-4 rounded-2xl border border-[#E8DDCA]">
+                <div>
+                  <span className="text-[10px] font-mono uppercase text-gray-400 block">Recipient</span>
+                  <p className="font-bold text-gray-900">{inspectingOrder.customerName}</p>
+                  <p className="font-mono text-gray-600">{inspectingOrder.customerPhone}</p>
+                  {inspectingOrder.customerEmail && (
+                    <p className="text-gray-500">{inspectingOrder.customerEmail}</p>
+                  )}
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono uppercase text-gray-400 block">Delivery Address</span>
+                  <p className="text-gray-800">{inspectingOrder.address}</p>
+                  <p className="text-gray-600">{inspectingOrder.city}, {inspectingOrder.province}</p>
+                  {inspectingOrder.paymentReference && (
+                    <p className="font-mono text-[11px] text-[#244C37] mt-1">
+                      Payment Ref: {inspectingOrder.paymentReference}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="divide-y divide-gray-100 border border-[#E8DDCA] rounded-2xl overflow-hidden">
+                {inspectingOrder.items.map((item, idx) => (
+                  <div key={idx} className="p-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-gray-900">{item.productName}</p>
+                      <p className="text-[11px] text-gray-500">{item.variantWeight} • SKU: {item.sku}</p>
+                    </div>
+                    <div className="text-right font-mono">
+                      <span className="block">{item.quantity} × Rs. {item.price.toLocaleString()}</span>
+                      <span className="font-bold text-[#244C37]">Rs. {item.subtotal.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-between items-center pt-2 border-t border-[#E8DDCA] font-bold text-sm text-[#244C37]">
+                <span>
+                  {inspectingOrder.paymentMethod} ({inspectingOrder.paymentStatus}) • Status: {inspectingOrder.orderStatus}
+                </span>
+                <span className="font-serif text-lg">
+                  Total: Rs. {inspectingOrder.totalAmount.toLocaleString()}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}

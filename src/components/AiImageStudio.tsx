@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
+import { apiRequest } from '../services/apiClient';
 import {
   X,
   Sparkles,
@@ -8,10 +9,11 @@ import {
   Wand2,
   AlertCircle,
   RefreshCw,
+  ShieldCheck,
 } from 'lucide-react';
 
 export const AiImageStudio: React.FC = () => {
-  const { isAiStudioOpen, setIsAiStudioOpen } = useStore();
+  const { isAiStudioOpen, setIsAiStudioOpen, isAdminUser, signInWithGoogle } = useStore();
 
   const [prompt, setPrompt] = useState(
     'Artisanal handcrafted olive wood dry fruit tray, overflowing with sun-cured Kashmiri Mamra almonds, jumbo cashews, green pistachios, and fresh Ajwa dates, bathed in warm Mediterranean morning sunlight'
@@ -34,31 +36,30 @@ export const AiImageStudio: React.FC = () => {
   const handleGenerate = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!prompt.trim()) return;
+    if (!isAdminUser) {
+      setErrorMsg('Administrator sign-in is required to generate AI images.');
+      return;
+    }
 
     setLoading(true);
     setErrorMsg(null);
 
     try {
-      const res = await fetch('/api/generate-image', {
+      const data = await apiRequest<{ imageUrl: string }>('/api/ai/generate-image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        requireAuth: true,
+        body: {
           prompt,
-          imageSize, // Affordance for 1K, 2K, 4K
+          imageSize,
           aspectRatio,
-        }),
+        },
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to generate image from Gemini.');
-      }
-
       setGeneratedImage(data.imageUrl);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setErrorMsg(
-        err.message || 'Image generation failed. Please try again or adjust your prompt.'
+        err instanceof Error ? err.message : 'Image generation failed. Please try again or adjust your prompt.'
       );
     } finally {
       setLoading(false);
@@ -198,25 +199,46 @@ export const AiImageStudio: React.FC = () => {
               </div>
             </div>
 
-            {/* Submit button */}
-            <button
-              type="button"
-              disabled={loading || !prompt.trim()}
-              onClick={() => handleGenerate()}
-              className="w-full py-3.5 bg-[#0A3D62] hover:bg-[#072B47] text-white rounded-xl font-mono text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin text-[#4E9B36]" />
-                  <span>Synthesizing {imageSize} Dry Fruit Asset...</span>
-                </>
-              ) : (
-                <>
-                  <Wand2 className="w-4 h-4 text-[#C6842D]" />
-                  <span>Generate {imageSize} High-Res Visual</span>
-                </>
-              )}
-            </button>
+            {/* Submit button / Admin Guard */}
+            {!isAdminUser ? (
+              <div className="p-4 bg-[#EEF5FA] border border-[#0A3D62]/20 rounded-xl space-y-3 text-xs text-[#15222E]">
+                <div className="flex items-start space-x-2">
+                  <ShieldCheck className="w-4 h-4 text-[#0A3D62] shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-[#0A3D62]">Staff Administrator Required</p>
+                    <p className="text-[11px] text-[#15222E]/70 mt-0.5 leading-relaxed">
+                      Custom AI rendering is restricted to verified store administrators. You may preview or download curated 4K studio scenes on the right at any time.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => signInWithGoogle()}
+                  className="w-full py-2.5 bg-[#0A3D62] hover:bg-[#072B47] text-white rounded-xl font-mono text-xs uppercase tracking-wider cursor-pointer transition-colors"
+                >
+                  Admin Sign-In with Google
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={loading || !prompt.trim()}
+                onClick={() => handleGenerate()}
+                className="w-full py-3.5 bg-[#0A3D62] hover:bg-[#072B47] text-white rounded-xl font-mono text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#4E9B36]" />
+                    <span>Synthesizing {imageSize} Dry Fruit Asset...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-4 h-4 text-[#C6842D]" />
+                    <span>Generate {imageSize} High-Res Visual</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {errorMsg && (
               <div className="p-3 bg-amber-50 border border-amber-300 text-amber-900 rounded-xl text-xs space-y-2 font-sans">

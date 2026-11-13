@@ -50,12 +50,14 @@ export const GiftBoxBuilder: React.FC = () => {
   const [giftCardMessage, setGiftCardMessage] = useState(
     'Wishing you and your family abundant health, barakah, and joyous celebrations with these mountain harvests.'
   );
+  const [builderError, setBuilderError] = useState<string | null>(null);
 
   const fillingsPrice = selectedFillings.reduce((acc, f) => acc + f.portion.price, 0);
   const totalWeightGrams = selectedFillings.reduce((acc, f) => acc + f.portion.weightGrams, 0);
   const totalBoxPrice = (selectedBox?.basePrice || 0) + fillingsPrice;
 
   const handleSelectPortion = (ing: ShahiMixIngredient, portion: ShahiMixPortion) => {
+    setBuilderError(null);
     const existingIndex = selectedFillings.findIndex((f) => f.ingredientId === ing.id);
     if (existingIndex > -1) {
       // Update portion of existing ingredient
@@ -69,7 +71,7 @@ export const GiftBoxBuilder: React.FC = () => {
       setSelectedFillings(updated);
     } else {
       if (selectedFillings.length >= selectedBox.capacity) {
-        alert(
+        setBuilderError(
           `This box can hold a maximum of ${selectedBox.capacity} compartments. Please remove one item first.`
         );
         return;
@@ -87,14 +89,16 @@ export const GiftBoxBuilder: React.FC = () => {
   };
 
   const removeFilling = (ingredientId: string) => {
+    setBuilderError(null);
     setSelectedFillings(selectedFillings.filter((f) => f.ingredientId !== ingredientId));
   };
 
   const handleAddBoxToCart = () => {
     if (selectedFillings.length < 2) {
-      alert('Please select at least 2 dry fruit portion fillings for your Shahi Mix Box.');
+      setBuilderError('Please select at least 2 dry fruit portion fillings for your Shahi Mix Box.');
       return;
     }
+    setBuilderError(null);
 
     const customProduct = {
       id: `custom-shahi-${Date.now()}`,
@@ -135,12 +139,22 @@ export const GiftBoxBuilder: React.FC = () => {
       inStock: true,
     };
 
+    const customBuild = {
+      kind: 'shahi-box' as const,
+      boxId: selectedBox.id,
+      items: selectedFillings.map((f) => ({
+        ingredientId: f.ingredientId,
+        portionId: f.portion.id,
+      })),
+    };
+
     addToCart(
       customProduct,
       customProduct.variants[0],
       1,
       `Occasion: ${giftOccasion} | To: ${giftCardRecipient || 'Beloved Family'} | Total Grams: ${totalWeightGrams}g | Note: ${giftCardMessage}`,
-      selectedBox.name
+      selectedBox.name,
+      customBuild
     );
 
     setIsCartOpen(true);
@@ -162,6 +176,15 @@ export const GiftBoxBuilder: React.FC = () => {
           Pick your outer luxury packaging, select exact portion weights in grams or kg (*100g, 250g, 500g, 1kg*), and compose a complimentary calligraphy card.
         </p>
       </div>
+
+      {builderError && (
+        <div className="max-w-3xl mx-auto mb-6 p-3.5 bg-red-50 border border-red-200 text-red-800 rounded-2xl text-xs font-semibold flex items-center justify-between">
+          <span>{builderError}</span>
+          <button type="button" onClick={() => setBuilderError(null)} className="underline text-[11px] cursor-pointer ml-4">
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Stepper Header */}
       <div className="flex flex-wrap sm:flex-nowrap items-center justify-center gap-3 sm:gap-8 mb-10 border-b border-[#E7DDCA] pb-4">

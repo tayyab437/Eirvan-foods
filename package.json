@@ -9,7 +9,8 @@
     "start": "tsx server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "build:ionos": "vite build && node scripts/package-ionos.mjs"
   },
   "dependencies": {
     "@google/genai": "^3.0.0",
