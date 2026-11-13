@@ -99,6 +99,10 @@
         "inStock": {
           "type": "boolean",
           "description": "Current availability state"
+        },
+        "viewCount": {
+          "type": "number",
+          "description": "Total count of users/visitors who viewed this product"
         }
       },
       "required": ["id", "name", "slug", "category", "origin", "imageUrl", "variants"]
@@ -367,6 +371,38 @@
         }
       },
       "required": ["storeName", "contactPhone", "whatsappNumber", "freeShippingThreshold", "standardShippingRate"]
+    },
+    "WholesaleInquiry": {
+      "title": "WholesaleInquiry",
+      "description": "Corporate gifting and wholesale bulk purchase lead inquiry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "companyName": { "type": "string", "maxLength": 100 },
+        "contactName": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "email": { "type": "string", "maxLength": 100 },
+        "inquiryType": { "type": "string", "enum": ["Corporate Gifting", "Wholesale Purchase", "Wedding Favors", "Other"] },
+        "estimatedQuantity": { "type": "string", "maxLength": 100 },
+        "eventDate": { "type": "string", "maxLength": 32 },
+        "message": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["New", "Contacted", "Quoted", "Converted", "Closed"] }
+      },
+      "required": ["id", "createdAt", "companyName", "contactName", "phone", "email", "inquiryType", "estimatedQuantity", "message", "status"]
+    },
+    "CategoryItem": {
+      "title": "CategoryItem",
+      "description": "Pantry product category taxonomy item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "image": { "type": "string", "maxLength": 500 },
+        "description": { "type": "string", "maxLength": 300 },
+        "isSystem": { "type": "boolean" }
+      },
+      "required": ["id", "name"]
     }
   },
   "firestore": {
@@ -399,6 +435,18 @@
         "$ref": "StoreSettings"
       },
       "description": "Global store operational policies and contact information"
+    },
+    "/wholesale_inquiries/{inquiryId}": {
+      "schema": {
+        "$ref": "WholesaleInquiry"
+      },
+      "description": "Corporate gifting and wholesale lead inquiries (public create, admin read/manage)"
+    },
+    "/categories/{categoryId}": {
+      "schema": {
+        "$ref": "CategoryItem"
+      },
+      "description": "Store product categories"
     }
   }
 }

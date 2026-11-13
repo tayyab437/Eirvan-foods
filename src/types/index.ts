@@ -1,3 +1,48 @@
+export interface ShahiMixPortion {
+  id: string;
+  weight: string; // e.g. "100g", "250g", "500g", "1kg"
+  weightGrams: number;
+  price: number; // PKR
+}
+
+export interface ShahiMixIngredient {
+  id: string;
+  name: string;
+  urduName?: string;
+  image: string;
+  inStock: boolean;
+  portions: ShahiMixPortion[];
+  nutritionFacts?: {
+    calories: number; // per 100g
+    protein: number; // per 100g
+    fat: number; // per 100g
+    carbs: number; // per 100g
+  };
+}
+
+export interface ShahiMixBox {
+  id: string;
+  name: string;
+  urduName?: string;
+  capacity: number; // compartments count
+  basePrice: number; // PKR
+  image: string;
+  description: string;
+}
+
+export interface UnboxingReview {
+  id: string;
+  customerName: string;
+  city: string;
+  rating: number;
+  productName: string;
+  unboxingPhoto: string;
+  comment: string;
+  date: string;
+  verifiedBuyer: boolean;
+  boxStyle?: string;
+}
+
 export interface ProductVariant {
   id: string;
   weight: string; // e.g. "250g", "500g", "1kg"
@@ -7,12 +52,20 @@ export interface ProductVariant {
   stock: number;
 }
 
+export interface CategoryItem {
+  id: string;
+  name: string;
+  image?: string;
+  description?: string;
+  isSystem?: boolean;
+}
+
 export interface Product {
   id: string;
   name: string;
   urduName?: string;
   slug: string;
-  category: 'mixed' | 'nuts' | 'powders' | 'dates-raisins' | 'gift-boxes';
+  category: string;
   categoryLabel: string;
   shortDescription: string;
   description: string;
@@ -37,6 +90,7 @@ export interface Product {
   };
   healthBenefits: string[];
   inStock: boolean;
+  viewCount?: number;
 }
 
 export interface CartItem {
@@ -158,4 +212,17 @@ export interface StoreSettings {
   };
   announcementBarMessage: string;
   announcementActive: boolean;
+}
+export interface WholesaleInquiry {
+  id: string;
+  createdAt: string;
+  companyName: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  inquiryType: 'Corporate Gifting' | 'Wholesale Purchase' | 'Wedding Favors' | 'Other';
+  estimatedQuantity: string;
+  eventDate?: string;
+  message: string;
+  status: 'New' | 'Contacted' | 'Quoted' | 'Converted' | 'Closed';
 }

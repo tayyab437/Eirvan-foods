@@ -11,7 +11,10 @@ import {
   Truck,
 } from 'lucide-react';
 
+import { useNavigate } from 'react-router-dom';
+
 export const CartDrawer: React.FC = () => {
+  const navigate = useNavigate();
   const {
     cart,
     isCartOpen,
@@ -26,7 +29,6 @@ export const CartDrawer: React.FC = () => {
     freeShippingRemaining,
     applyCoupon,
     removeCoupon,
-    setActiveView,
     settings,
   } = useStore();
 
@@ -50,7 +52,7 @@ export const CartDrawer: React.FC = () => {
 
   const handleProceedToCheckout = () => {
     setIsCartOpen(false);
-    setActiveView('checkout');
+    navigate('/checkout');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -124,7 +126,7 @@ export const CartDrawer: React.FC = () => {
               <button
                 onClick={() => {
                   setIsCartOpen(false);
-                  setActiveView('shop');
+                  navigate('/shop');
                 }}
                 className="px-6 py-2.5 bg-[#344B36] text-[#F7F4EC] text-xs uppercase tracking-wider font-bold rounded-xl hover:bg-[#233425] cursor-pointer shadow-md transition-colors"
               >

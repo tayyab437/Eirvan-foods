@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { Product, OrderStatus, ProductVariant, Coupon } from '../types';
 import {
@@ -32,11 +33,25 @@ import {
   Printer,
   ChevronRight,
   Filter,
+  Eye,
+  Users,
+  Gift,
+  Phone,
+  MapPin,
+  RotateCcw,
+  Building2,
+  Mail,
+  Calendar,
+  ShieldCheck,
+  LogOut,
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const {
     products,
+    categoriesList,
+    shahiMixBoxes,
+    shahiMixIngredients,
     orders,
     coupons,
     reviews,
@@ -49,23 +64,89 @@ export const AdminDashboard: React.FC = () => {
     addCoupon,
     toggleCoupon,
     deleteCoupon,
-    setActiveView,
+    addCategory,
+    deleteCategory,
+    addShahiMixBox,
+    updateShahiMixBox,
+    deleteShahiMixBox,
+    addShahiMixIngredient,
+    updateShahiMixIngredient,
+    deleteShahiMixIngredient,
+    wholesaleInquiries,
+    updateWholesaleStatus,
+    deleteWholesaleInquiry,
+    currentUser,
+    isAuthReady,
+    isAdminUser,
+    signInWithGoogle,
+    signOutUser,
     isFirebaseSyncing,
     firebaseConnected,
   } = useStore();
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<
-    'analytics' | 'products' | 'orders' | 'inventory' | 'coupons' | 'reviews' | 'settings' | 'ionos'
+    'analytics' | 'products' | 'categories' | 'orders' | 'completed-orders' | 'returns' | 'customers' | 'wholesale' | 'inventory' | 'coupons' | 'shahi-mix' | 'reviews' | 'settings' | 'ionos'
   >('analytics');
 
-  // Search & filter states
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
   const [productSearch, setProductSearch] = useState('');
+  const [productSort, setProductSort] = useState<'default' | 'views-desc' | 'views-asc' | 'stock-low'>('default');
+
+  // Category management state
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    description: '',
+    image: '',
+  });
+  const [categoryFeedback, setCategoryFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Shahi Mix Builder Management state
+  const [shahiMixSubTab, setShahiMixSubTab] = useState<'ingredients' | 'boxes'>('ingredients');
+  const [isIngredientModalOpen, setIsIngredientModalOpen] = useState(false);
+  const [ingredientForm, setIngredientForm] = useState({
+    name: '',
+    image: '',
+    inStock: true,
+    price10g: 90,
+    price50g: 450,
+    price100g: 800,
+    price250g: 1900,
+    price500g: 3700,
+    price1kg: 7200,
+  });
+
+  const [isBoxModalOpen, setIsBoxModalOpen] = useState(false);
+  const [boxForm, setBoxForm] = useState({
+    name: '',
+    urduName: '',
+    capacity: 4,
+    basePrice: 1950,
+    image: '',
+    description: '',
+  });
+  const [shahiMixFeedback, setShahiMixFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Product edit modal state
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isNewProduct, setIsNewProduct] = useState(false);
+
+  // Coupon modal state
+  const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
+  const [couponForm, setCouponForm] = useState<Coupon>({
+    code: '',
+    discountType: 'percentage',
+    discountValue: 10,
+    minOrderAmount: 2000,
+    isActive: true,
+    expiryDate: '2026-12-31',
+    usageCount: 0,
+  });
 
   // Copy notification state
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
@@ -84,21 +165,82 @@ export const AdminDashboard: React.FC = () => {
       .map((v) => ({ product: p, variant: v }))
   );
 
+  const uniqueCustomers = useMemo(() => {
+    const customerMap: Record<string, {
+      phone: string;
+      name: string;
+      city: string;
+      ordersCount: number;
+      totalSpent: number;
+      lastOrderDate: string;
+    }> = {};
+
+    orders.forEach(order => {
+      if (!customerMap[order.customerPhone]) {
+        customerMap[order.customerPhone] = {
+          phone: order.customerPhone,
+          name: order.customerName,
+          city: order.city,
+          ordersCount: 0,
+          totalSpent: 0,
+          lastOrderDate: order.createdAt
+        };
+      }
+      
+      const cust = customerMap[order.customerPhone];
+      cust.ordersCount += 1;
+      cust.totalSpent += order.totalAmount;
+      if (new Date(order.createdAt) > new Date(cust.lastOrderDate)) {
+        cust.lastOrderDate = order.createdAt;
+      }
+    });
+
+    return Object.values(customerMap).sort((a, b) => b.totalSpent - a.totalSpent);
+  }, [orders]);
+
   const filteredOrders = orders.filter((o) => {
     const matchesSearch =
       o.orderNumber.toLowerCase().includes(orderSearch.toLowerCase()) ||
       o.customerName.toLowerCase().includes(orderSearch.toLowerCase()) ||
       o.customerPhone.includes(orderSearch);
+    
+    let matchesTab = true;
+    if (activeTab === 'orders') {
+      // Active = Anything not Delivered, Returned, or Cancelled
+      matchesTab = o.orderStatus !== 'Delivered' && o.orderStatus !== 'Returned' && o.orderStatus !== 'Cancelled';
+    } else if (activeTab === 'completed-orders') {
+      // Completed = Delivered or Cancelled
+      matchesTab = o.orderStatus === 'Delivered' || o.orderStatus === 'Cancelled';
+    } else if (activeTab === 'returns') {
+      matchesTab = o.orderStatus === 'Returned';
+    }
+
     const matchesStatus =
       orderStatusFilter === 'all' || o.orderStatus === orderStatusFilter;
-    return matchesSearch && matchesStatus;
+      
+    return matchesSearch && matchesStatus && matchesTab;
   });
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-      p.categoryLabel.toLowerCase().includes(productSearch.toLowerCase())
-  );
+  const filteredProducts = products
+    .filter(
+      (p) =>
+        p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+        p.categoryLabel.toLowerCase().includes(productSearch.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (productSort === 'views-desc') {
+        return (b.viewCount || 0) - (a.viewCount || 0);
+      }
+      if (productSort === 'views-asc') {
+        return (a.viewCount || 0) - (b.viewCount || 0);
+      }
+      if (productSort === 'stock-low') {
+        const stockA = a.variants.reduce((acc, v) => acc + v.stock, 0);
+        const stockB = b.variants.reduce((acc, v) => acc + v.stock, 0);
+        return stockA - stockB;
+      }
+      return 0;
+    });
 
   const handleCopyText = (text: string, sectionName: string) => {
     navigator.clipboard.writeText(text);
@@ -118,30 +260,167 @@ export const AdminDashboard: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Helper function to generate clean URL slug
+  const generateSlug = (text: string) => {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
 
+    // Ensure slug is clean and non-empty
+    const cleanSlug = editingProduct.slug.trim() || generateSlug(editingProduct.name) || `product-${Date.now()}`;
+    const productToSave = {
+      ...editingProduct,
+      slug: cleanSlug,
+    };
+
     if (isNewProduct) {
-      await addNewProduct(editingProduct);
+      await addNewProduct(productToSave);
     } else {
-      await updateProduct(editingProduct);
+      await updateProduct(productToSave);
     }
 
     setEditingProduct(null);
     setIsNewProduct(false);
   };
 
+  const handleSaveCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!couponForm.code.trim()) return;
+
+    await addCoupon(couponForm);
+    setIsCouponModalOpen(false);
+    setCouponForm({
+      code: '',
+      discountType: 'percentage',
+      discountValue: 10,
+      minOrderAmount: 2000,
+      isActive: true,
+      expiryDate: '2026-12-31',
+      usageCount: 0,
+    });
+  };
+
+  const handleExportOrders = () => {
+    const headers = ['Order Number', 'Date', 'Customer Name', 'Phone', 'City', 'Address', 'Items', 'Total Amount', 'Payment', 'Status'];
+    const rows = filteredOrders.map(o => [
+      o.orderNumber,
+      new Date(o.createdAt).toLocaleDateString(),
+      o.customerName,
+      `'${o.customerPhone}`, // Add quote to prevent Excel from scientific notation
+      o.city,
+      o.address.replace(/,/g, ' '),
+      o.items.map(it => `${it.productName} (${it.variantWeight} x ${it.quantity})`).join(' | '),
+      o.totalAmount,
+      o.paymentMethod,
+      o.orderStatus
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.join(','))
+    ].join('\n');
+
+    handleDownloadFile(csvContent, `eirvan_orders_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+  };
+
+  const handleAdminGoogleSignIn = async () => {
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      setAuthError(err?.message || 'Sign-in failed. Please allow popups and try again.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center bg-[#F7F4EC] px-4">
+        <div className="bg-white rounded-3xl border border-[#E8DDCA] p-10 text-center max-w-md w-full shadow-sm">
+          <div className="w-10 h-10 border-2 border-[#244C37] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm font-serif font-bold text-[#244C37]">Verifying Staff Credentials...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser || !isAdminUser) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center bg-[#F7F4EC] px-4 py-12">
+        <div className="bg-white rounded-3xl border border-[#E8DDCA] p-8 sm:p-10 max-w-md w-full shadow-xl text-center space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-[#244C37] text-[#B69A62] flex items-center justify-center mx-auto shadow-md">
+            <ShieldCheck className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#B69A62] bg-[#244C37]/5 px-3 py-1 rounded-full">
+              Protected Staff Portal
+            </span>
+            <h1 className="font-serif text-2xl font-bold text-[#302A25]">
+              {currentUser ? 'Unauthorized Account' : 'Administrator Sign-In'}
+            </h1>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              {currentUser
+                ? `Signed in as ${currentUser.email || 'unknown user'}. Please sign in with the authorized store administrator Google account to access orders and wholesale leads.`
+                : 'Sign in with your authorized Google administrator account to access Store Operations, Orders, and Wholesale Leads.'}
+            </p>
+          </div>
+
+          {authError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 text-left">
+              {authError}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {currentUser ? (
+              <button
+                onClick={signOutUser}
+                className="w-full py-3.5 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl flex items-center justify-center space-x-2 transition-all cursor-pointer"
+              >
+                <LogOut className="w-4 h-4 text-[#B69A62]" />
+                <span>Sign Out &amp; Switch Account</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleAdminGoogleSignIn}
+                disabled={authLoading}
+                className="w-full py-3.5 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl flex items-center justify-center space-x-2 transition-all shadow-md cursor-pointer disabled:opacity-50"
+              >
+                <ShieldCheck className="w-4 h-4 text-[#B69A62]" />
+                <span>{authLoading ? 'Signing in...' : 'Sign in with Google'}</span>
+              </button>
+            )}
+            <button
+              onClick={() => navigate('/')}
+              className="w-full py-3 bg-[#F8F5ED] border border-[#E8DDCA] text-xs font-bold text-[#302A25] rounded-xl hover:bg-[#EFE8D8] transition-all cursor-pointer"
+            >
+              Return to Storefront
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full max-w-full overflow-x-hidden">
       {/* Admin Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[#E8DDCA] gap-4">
         <div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
             <span className="text-xs bg-[#344B36] text-[#B69A62] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
               Staff Portal
             </span>
-            <span className="text-xs text-gray-500">• Authenticated Administrator</span>
+            <span className="text-xs text-gray-500">• {currentUser.email}</span>
             <div className="flex items-center space-x-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded-full text-[11px] font-mono border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
               <span>Firebase Firestore: {isFirebaseSyncing ? 'Syncing...' : 'Connected'}</span>
@@ -157,7 +436,7 @@ export const AdminDashboard: React.FC = () => {
 
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => setActiveView('home')}
+            onClick={() => navigate('/')}
             className="px-4 py-2 bg-white border border-[#E8DDCA] text-xs font-bold text-gray-700 rounded-xl hover:bg-[#F8F5ED] cursor-pointer"
           >
             Preview Storefront
@@ -169,107 +448,378 @@ export const AdminDashboard: React.FC = () => {
             <Server className="w-3.5 h-3.5" />
             <span>IONOS PHP Deploy</span>
           </button>
+          <button
+            onClick={signOutUser}
+            className="px-3.5 py-2 bg-white border border-[#E8DDCA] text-xs font-bold text-gray-700 rounded-xl hover:bg-red-50 hover:text-red-700 hover:border-red-200 flex items-center space-x-1.5 cursor-pointer"
+            title="Sign Out"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
         </div>
       </div>
 
-      {/* Admin Tabs */}
-      <div className="flex border-b border-[#E8DDCA] space-x-2 sm:space-x-4 overflow-x-auto py-3 text-xs sm:text-sm font-semibold">
-        <button
-          onClick={() => setActiveTab('analytics')}
-          className={`flex items-center space-x-1.5 pb-2 border-b-2 transition-all cursor-pointer shrink-0 ${
-            activeTab === 'analytics'
-              ? 'border-[#244C37] text-[#244C37]'
-              : 'border-transparent text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <BarChart3 className="w-4 h-4" />
-          <span>Dashboard KPI</span>
-        </button>
+      {/* Admin Dashboard Sidebar & Content Layout */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start mt-6">
+        {/* Left Vertical Sidebar Navigation */}
+        <aside className="w-full lg:w-64 shrink-0 bg-white rounded-3xl border border-[#E8DDCA] p-4 shadow-sm lg:sticky lg:top-6 space-y-5">
+          {/* Brand & Portal Header */}
+          <div className="px-3.5 py-3 bg-[#F8F5ED] rounded-2xl border border-[#E8DDCA] flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-[#244C37] text-[#B69A62] flex items-center justify-center font-bold font-serif text-base shadow-xs">
+              E
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="font-serif font-bold text-xs text-[#242821] block leading-tight truncate">
+                Eirvan Control
+              </span>
+              <span className="text-[10px] text-gray-500 font-mono block truncate">
+                Staff Admin Panel
+              </span>
+            </div>
+          </div>
 
-        <button
-          onClick={() => setActiveTab('products')}
-          className={`flex items-center space-x-1.5 pb-2 border-b-2 transition-all cursor-pointer shrink-0 ${
-            activeTab === 'products'
-              ? 'border-[#244C37] text-[#244C37]'
-              : 'border-transparent text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <Package className="w-4 h-4" />
-          <span>Products ({products.length})</span>
-        </button>
+          {/* Navigation Items Group 1: Core Store */}
+          <div className="space-y-1">
+            <div className="px-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+              Core Operations
+            </div>
 
-        <button
-          onClick={() => setActiveTab('orders')}
-          className={`flex items-center space-x-1.5 pb-2 border-b-2 transition-all cursor-pointer shrink-0 ${
-            activeTab === 'orders'
-              ? 'border-[#244C37] text-[#244C37]'
-              : 'border-transparent text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <ShoppingBag className="w-4 h-4" />
-          <span>Orders ({orders.length})</span>
-        </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'analytics'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <BarChart3 className="w-4 h-4" />
+                <span>Dashboard KPI</span>
+              </div>
+              {activeTab === 'analytics' && <ChevronRight className="w-3.5 h-3.5 opacity-70" />}
+            </button>
 
-        <button
-          onClick={() => setActiveTab('inventory')}
-          className={`flex items-center space-x-1.5 pb-2 border-b-2 transition-all cursor-pointer shrink-0 ${
-            activeTab === 'inventory'
-              ? 'border-[#244C37] text-[#244C37]'
-              : 'border-transparent text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>Stock Audit ({lowStockVariants.length} Low)</span>
-        </button>
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'products'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Package className="w-4 h-4" />
+                <span>Products</span>
+              </div>
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'products'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#F8F5ED] border border-[#E8DDCA] text-gray-700'
+                }`}
+              >
+                {products.length}
+              </span>
+            </button>
 
-        <button
-          onClick={() => setActiveTab('coupons')}
-          className={`flex items-center space-x-1.5 pb-2 border-b-2 transition-all cursor-pointer shrink-0 ${
-            activeTab === 'coupons'
-              ? 'border-[#244C37] text-[#244C37]'
-              : 'border-transparent text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <Tag className="w-4 h-4" />
-          <span>Coupons ({coupons.length})</span>
-        </button>
+            <button
+              onClick={() => setActiveTab('categories')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'categories'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Layers className="w-4 h-4 text-[#B69A62]" />
+                <span>Categories</span>
+              </div>
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'categories'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#F8F5ED] border border-[#E8DDCA] text-gray-700'
+                }`}
+              >
+                {categoriesList.length}
+              </span>
+            </button>
 
-        <button
-          onClick={() => setActiveTab('reviews')}
-          className={`flex items-center space-x-1.5 pb-2 border-b-2 transition-all cursor-pointer shrink-0 ${
-            activeTab === 'reviews'
-              ? 'border-[#244C37] text-[#244C37]'
-              : 'border-transparent text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <MessageSquare className="w-4 h-4" />
-          <span>Reviews ({reviews.length})</span>
-        </button>
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'orders'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <ShoppingBag className="w-4 h-4" />
+                <span>Active Orders</span>
+              </div>
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'orders'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#F8F5ED] border border-[#E8DDCA] text-gray-700'
+                }`}
+              >
+                {orders.filter(o => o.orderStatus !== 'Delivered' && o.orderStatus !== 'Returned' && o.orderStatus !== 'Cancelled').length}
+              </span>
+            </button>
 
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`flex items-center space-x-1.5 pb-2 border-b-2 transition-all cursor-pointer shrink-0 ${
-            activeTab === 'settings'
-              ? 'border-[#244C37] text-[#244C37]'
-              : 'border-transparent text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <Settings className="w-4 h-4" />
-          <span>Settings</span>
-        </button>
+            <button
+              onClick={() => setActiveTab('completed-orders')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'completed-orders'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Completed Orders</span>
+              </div>
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'completed-orders'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#F8F5ED] border border-[#E8DDCA] text-gray-700'
+                }`}
+              >
+                {orders.filter(o => o.orderStatus === 'Delivered' || o.orderStatus === 'Cancelled').length}
+              </span>
+            </button>
 
-        <button
-          onClick={() => setActiveTab('ionos')}
-          className={`flex items-center space-x-1.5 pb-2 border-b-2 transition-all cursor-pointer shrink-0 ${
-            activeTab === 'ionos'
-              ? 'border-[#C99A45] text-[#C99A45] font-bold'
-              : 'border-transparent text-[#AA7F32] hover:text-[#C99A45]'
-          }`}
-        >
-          <Server className="w-4 h-4 text-[#C99A45]" />
-          <span>IONOS PHP & MySQL Center</span>
-        </button>
-      </div>
+            <button
+              onClick={() => setActiveTab('returns')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'returns'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <RotateCcw className="w-4 h-4" />
+                <span>Returns</span>
+              </div>
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'returns'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#F8F5ED] border border-[#E8DDCA] text-gray-700'
+                }`}
+              >
+                {orders.filter(o => o.orderStatus === 'Returned').length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('customers')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'customers'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Users className="w-4 h-4" />
+                <span>Customers</span>
+              </div>
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'customers'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#F8F5ED] border border-[#E8DDCA] text-gray-700'
+                }`}
+              >
+                {[...new Set(orders.map(o => o.customerPhone))].length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('wholesale')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'wholesale'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Building2 className="w-4 h-4" />
+                <span>Wholesale Leads</span>
+              </div>
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'wholesale'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#F8F5ED] border border-[#E8DDCA] text-gray-700'
+                }`}
+              >
+                {wholesaleInquiries.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('inventory')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'inventory'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Layers className="w-4 h-4" />
+                <span>Stock Audit</span>
+              </div>
+              {lowStockVariants.length > 0 && (
+                <span
+                  className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
+                    activeTab === 'inventory'
+                      ? 'bg-amber-400 text-gray-900'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {lowStockVariants.length} Low
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Navigation Items Group 2: Management & Marketing */}
+          <div className="space-y-1 pt-3 border-t border-[#E8DDCA]">
+            <div className="px-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+              Management
+            </div>
+
+            <button
+              onClick={() => setActiveTab('coupons')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'coupons'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Tag className="w-4 h-4" />
+                <span>Coupons</span>
+              </div>
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'coupons'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#F8F5ED] border border-[#E8DDCA] text-gray-700'
+                }`}
+              >
+                {coupons.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'reviews'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <MessageSquare className="w-4 h-4" />
+                <span>Reviews</span>
+              </div>
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'reviews'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#F8F5ED] border border-[#E8DDCA] text-gray-700'
+                }`}
+              >
+                {reviews.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('shahi-mix')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'shahi-mix'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Gift className="w-4 h-4 text-[#B69A62]" />
+                <span>Shahi Mix Builder</span>
+              </div>
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'shahi-mix'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#F8F5ED] border border-[#E8DDCA] text-gray-700'
+                }`}
+              >
+                {shahiMixIngredients.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'settings'
+                  ? 'bg-[#244C37] text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-[#F8F5ED] hover:text-[#244C37]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Settings className="w-4 h-4" />
+                <span>Store Settings</span>
+              </div>
+              {activeTab === 'settings' && <ChevronRight className="w-3.5 h-3.5 opacity-70" />}
+            </button>
+          </div>
+
+          {/* Navigation Items Group 3: Hosting & Infrastructure */}
+          <div className="space-y-1 pt-3 border-t border-[#E8DDCA]">
+            <div className="px-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+              Hosting & Deploy
+            </div>
+
+            <button
+              onClick={() => setActiveTab('ionos')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'ionos'
+                  ? 'bg-[#C99A45] text-[#344B36] shadow-xs'
+                  : 'text-[#AA7F32] hover:bg-[#F8F5ED] hover:text-[#C99A45]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Server className="w-4 h-4 text-[#C99A45]" />
+                <span>IONOS PHP & MySQL</span>
+              </div>
+              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                PRO
+              </span>
+            </button>
+          </div>
+
+          {/* Quick Realtime Status Badge */}
+          <div className="p-3 bg-[#F8F5ED] rounded-2xl border border-[#E8DDCA] text-[11px] space-y-1">
+            <div className="flex items-center justify-between text-gray-600 font-semibold">
+              <span className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Firestore Live</span>
+              </span>
+              <span className="text-[10px] font-mono text-emerald-700 bg-emerald-100/80 px-1.5 py-0.2 rounded font-bold">
+                Active
+              </span>
+            </div>
+            <p className="text-[10px] text-gray-500 font-mono truncate">
+              {isFirebaseSyncing ? 'Syncing updates...' : 'Connected'}
+            </p>
+          </div>
+        </aside>
+
+        {/* Right Content Area */}
+        <div className="flex-1 w-full min-w-0">
 
       {/* TAB 1: ANALYTICS */}
       {activeTab === 'analytics' && (
@@ -388,84 +938,126 @@ export const AdminDashboard: React.FC = () => {
       {activeTab === 'products' && (
         <div className="py-6 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="relative max-w-sm flex-1">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                placeholder="Search catalog by name or category..."
-                className="w-full text-xs pl-9 pr-3 py-2 bg-white rounded-xl border border-[#E8DDCA]"
-              />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1 max-w-lg">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  placeholder="Search catalog by name or category..."
+                  className="w-full text-xs pl-9 pr-3 py-2 bg-white rounded-xl border border-[#E8DDCA]"
+                />
+              </div>
+
+              <div className="flex items-center space-x-1.5 shrink-0">
+                <Filter className="w-3.5 h-3.5 text-gray-400" />
+                <select
+                  value={productSort}
+                  onChange={(e) => setProductSort(e.target.value as any)}
+                  className="text-xs py-2 px-2.5 bg-white rounded-xl border border-[#E8DDCA] text-gray-700"
+                >
+                  <option value="default">Sort by Default</option>
+                  <option value="views-desc">Most Visited First (Views ▼)</option>
+                  <option value="views-asc">Least Visited (Views ▲)</option>
+                  <option value="stock-low">Lowest Stock First</option>
+                </select>
+              </div>
             </div>
 
-            <button
-              onClick={() => {
-                const blank: Product = {
-                  id: `prod-${Date.now()}`,
-                  name: 'New Mountain Dry Fruit',
-                  urduName: '',
-                  slug: `product-${Date.now()}`,
-                  category: 'nuts',
-                  categoryLabel: 'Premium Nuts',
-                  shortDescription: 'Fresh mountain harvest from Pakistan.',
-                  description: 'Detailed nutritional and origin description.',
-                  origin: 'Gilgit-Baltistan, Pakistan',
-                  packaging: 'Airtight Vacuum Jar',
-                  shelfLife: '12 Months',
-                  imageUrl:
-                    'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp',
-                  galleryImages: [],
-                  variants: [
-                    {
-                      id: `v-${Date.now()}-1`,
-                      weight: '250g',
-                      sku: `ZDS-NEW-250`,
-                      price: 1500,
-                      stock: 25,
+            <div className="flex items-center space-x-2">
+              <div className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 bg-[#F8F5ED] border border-[#E8DDCA] rounded-xl text-xs text-gray-700">
+                <Eye className="w-3.5 h-3.5 text-[#244C37]" />
+                <span>Total Catalog Views:</span>
+                <span className="font-bold font-mono text-[#244C37]">
+                  {products.reduce((acc, p) => acc + (p.viewCount || 0), 0).toLocaleString()}
+                </span>
+              </div>
+
+              <button
+                onClick={() => setActiveTab('categories')}
+                className="px-3.5 py-2 bg-white border border-[#E8DDCA] hover:bg-[#F8F5ED] text-[#244C37] text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-2xs cursor-pointer"
+              >
+                <Layers className="w-4 h-4 text-[#B69A62]" />
+                <span>Manage Categories</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const blank: Product = {
+                    id: `prod-${Date.now()}`,
+                    name: '',
+                    urduName: '',
+                    slug: '',
+                    category: 'nuts',
+                    categoryLabel: 'Premium Nuts',
+                    shortDescription: 'Fresh mountain harvest from Pakistan.',
+                    description: 'Detailed nutritional and origin description.',
+                    origin: 'Gilgit-Baltistan, Pakistan',
+                    packaging: 'Airtight Vacuum Jar',
+                    shelfLife: '12 Months',
+                    imageUrl:
+                      'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp',
+                    galleryImages: [],
+                    variants: [
+                      {
+                        id: `v-${Date.now()}-1`,
+                        weight: '250g',
+                        sku: `ZDS-NEW-250`,
+                        price: 1500,
+                        stock: 25,
+                      },
+                    ],
+                    featured: false,
+                    bestSeller: false,
+                    rating: 5.0,
+                    reviewCount: 0,
+                    nutritionFacts: {
+                      servingSize: '30g',
+                      calories: 160,
+                      protein: '5.0g',
+                      healthyFats: '14.0g',
+                      carbs: '8.0g',
+                      fiber: '2.5g',
+                      minerals: 'Potassium, Zinc, Iron',
                     },
-                  ],
-                  featured: false,
-                  bestSeller: false,
-                  rating: 5.0,
-                  reviewCount: 0,
-                  nutritionFacts: {
-                    servingSize: '30g',
-                    calories: 160,
-                    protein: '5.0g',
-                    healthyFats: '14.0g',
-                    carbs: '8.0g',
-                    fiber: '2.5g',
-                    minerals: 'Potassium, Zinc, Iron',
-                  },
-                  healthBenefits: ['Heart health', 'Brain vitality'],
-                  inStock: true,
-                };
-                setEditingProduct(blank);
-                setIsNewProduct(true);
-              }}
-              className="px-4 py-2 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-sm cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add New Product</span>
-            </button>
+                    healthBenefits: ['Heart health', 'Brain vitality'],
+                    inStock: true,
+                    viewCount: 0,
+                  };
+                  setEditingProduct(blank);
+                  setIsNewProduct(true);
+                }}
+                className="px-4 py-2 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add New Product</span>
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-3xl border border-[#E8DDCA] overflow-hidden shadow-xs">
             <div className="overflow-x-auto w-full">
-              <table className="w-full text-xs min-w-[650px]">
+              <table className="w-full text-xs min-w-[720px]">
               <thead>
                 <tr className="bg-[#F8F5ED] border-b border-[#E8DDCA] text-left text-gray-500 uppercase text-[10px]">
                   <th className="p-3">Product</th>
                   <th className="p-3">Category</th>
                   <th className="p-3">Variants & Prices</th>
                   <th className="p-3">Total Stock</th>
+                  <th className="p-3">
+                    <div className="flex items-center space-x-1">
+                      <Eye className="w-3.5 h-3.5 text-[#244C37]" />
+                      <span>User Visits</span>
+                    </div>
+                  </th>
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredProducts.map((p) => {
                   const totalStock = p.variants.reduce((a, v) => a + v.stock, 0);
+                  const visits = p.viewCount || 0;
                   return (
                     <tr key={p.id} className="hover:bg-gray-50/50">
                       <td className="p-3">
@@ -511,6 +1103,15 @@ export const AdminDashboard: React.FC = () => {
                           {totalStock} units
                         </span>
                       </td>
+                      <td className="p-3">
+                        <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-[#F8F5ED] border border-[#E8DDCA] text-gray-800">
+                          <Users className="w-3 h-3 text-[#244C37]" />
+                          <span className="font-bold font-mono text-[11px]">
+                            {visits.toLocaleString()}
+                          </span>
+                          <span className="text-[10px] text-gray-500">views</span>
+                        </div>
+                      </td>
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end space-x-2">
                           <button
@@ -546,18 +1147,872 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: ORDERS MANAGEMENT */}
-      {activeTab === 'orders' && (
+      {/* TAB 2.5: CATEGORIES MANAGEMENT */}
+      {activeTab === 'categories' && (
         <div className="py-6 space-y-6">
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8DDCA]">
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#B69A62] bg-[#244C37] px-2.5 py-0.5 rounded-full">
+                  Pantry Taxonomy
+                </span>
+                <span className="text-xs text-gray-500">• {categoriesList.length} Active Categories</span>
+              </div>
+              <h2 className="font-serif text-2xl font-bold text-[#242821] mt-1">
+                Store Categories Catalogue
+              </h2>
+              <p className="text-xs text-gray-500">
+                Add new harvest categories or remove obsolete ones. Changes sync dynamically across product forms and shop navigation.
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search categories..."
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  className="pl-9 pr-3 py-2 bg-white border border-[#E8DDCA] rounded-xl text-xs focus:outline-hidden focus:border-[#244C37] w-48 sm:w-64"
+                />
+              </div>
+
+              <button
+                onClick={() => {
+                  setCategoryFeedback(null);
+                  setCategoryForm({ name: '', description: '', image: '' });
+                  setIsCategoryModalOpen(true);
+                }}
+                className="px-4 py-2 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-sm cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add New Category</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Feedback banner */}
+          {categoryFeedback && (
+            <div
+              className={`p-3.5 rounded-2xl text-xs font-semibold flex items-center justify-between ${
+                categoryFeedback.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                {categoryFeedback.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-600" />
+                )}
+                <span>{categoryFeedback.text}</span>
+              </div>
+              <button onClick={() => setCategoryFeedback(null)} className="text-xs underline cursor-pointer">
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {/* Categories Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {categoriesList
+              .filter(
+                (cat) =>
+                  cat.name.toLowerCase().includes(categorySearch.toLowerCase()) ||
+                  cat.id.toLowerCase().includes(categorySearch.toLowerCase())
+              )
+              .map((cat) => {
+                const prodCount = products.filter((p) => p.category === cat.id).length;
+                return (
+                  <div
+                    key={cat.id}
+                    className="bg-white rounded-3xl border border-[#E8DDCA] overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                  >
+                    <div>
+                      <div className="aspect-16/9 w-full bg-[#F8F5ED] overflow-hidden relative">
+                        <img
+                          src={
+                            cat.image ||
+                            'https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=480&q=65&fm=webp'
+                          }
+                          alt={cat.name}
+                          className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
+                        />
+                        <span className="absolute top-3 left-3 bg-[#244C37]/90 backdrop-blur-md text-[#B69A62] text-[10px] font-mono font-bold px-2.5 py-1 rounded-full border border-white/20">
+                          ID: {cat.id}
+                        </span>
+                        {cat.isSystem && (
+                          <span className="absolute top-3 right-3 bg-emerald-700/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-2xs">
+                            System Category
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="p-5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-serif text-lg font-bold text-[#242821]">
+                            {cat.name}
+                          </h3>
+                          <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-xl bg-[#F8F5ED] border border-[#E8DDCA] text-[#244C37]">
+                            {prodCount} {prodCount === 1 ? 'Product' : 'Products'}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                          {cat.description || 'Natural organic harvest category.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-5 pt-3 border-t border-[#E8DDCA]/60 flex items-center justify-between mt-2">
+                      <span className="text-[11px] text-gray-400 font-mono">
+                        /shop/{cat.id}
+                      </span>
+
+                      <button
+                        onClick={async () => {
+                          if (
+                            window.confirm(
+                              `Are you sure you want to remove category "${cat.name}"?${
+                                prodCount > 0
+                                  ? ` Note: ${prodCount} product(s) are currently tagged with this category.`
+                                  : ''
+                              }`
+                            )
+                          ) {
+                            const res = await deleteCategory(cat.id);
+                            setCategoryFeedback({
+                              type: res.success ? 'success' : 'error',
+                              text: res.message,
+                            });
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer border border-rose-200"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove Category</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Add New Category Modal */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-[#E8DDCA] overflow-hidden my-8">
+            <div className="p-6 border-b border-[#E8DDCA] flex items-center justify-between bg-[#F8F5ED]">
+              <div>
+                <span className="text-xs font-mono uppercase tracking-wider text-[#B69A62] font-bold">
+                  Catalogue Expansion
+                </span>
+                <h2 className="font-serif text-xl font-bold text-[#242821] mt-0.5">
+                  Add New Product Category
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="p-2 rounded-full hover:bg-gray-200 text-gray-500 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const res = await addCategory({
+                  name: categoryForm.name,
+                  description: categoryForm.description,
+                  image: categoryForm.image,
+                });
+
+                setCategoryFeedback({
+                  type: res.success ? 'success' : 'error',
+                  text: res.message,
+                });
+
+                if (res.success) {
+                  setIsCategoryModalOpen(false);
+                  setCategoryForm({ name: '', description: '', image: '' });
+                }
+              }}
+              className="p-6 space-y-4 text-xs"
+            >
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Category Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Organic Kashmiri Saffron & Honey"
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden"
+                />
+                <p className="text-[10px] text-gray-400 mt-1 font-mono">
+                  Generated Category ID:{' '}
+                  <strong className="text-[#244C37]">
+                    {categoryForm.name
+                      ? categoryForm.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
+                      : 'category-id'}
+                  </strong>
+                </p>
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Short Description</label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Pure single-harvest organic saffron and raw mountain wildflower honey."
+                  value={categoryForm.description}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Cover Image URL</label>
+                <input
+                  type="url"
+                  placeholder="https://images.unsplash.com/photo-..."
+                  value={categoryForm.image}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, image: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-mono text-[11px]"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Optional. If left empty, a high quality harvest category cover photo will be assigned automatically.
+                </p>
+              </div>
+
+              <div className="pt-3 border-t border-[#E8DDCA] flex items-center justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryModalOpen(false)}
+                  className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-[#244C37] hover:bg-[#1A3828] text-white font-bold rounded-xl cursor-pointer shadow-sm"
+                >
+                  Save Category
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2.8: SHAHI MIX BUILDER MANAGEMENT */}
+      {activeTab === 'shahi-mix' && (
+        <div className="py-6 space-y-6">
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8DDCA]">
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#344B36] bg-[#B69A62] px-2.5 py-0.5 rounded-full">
+                  Bespoke Packaging & Mixes
+                </span>
+                <span className="text-xs text-gray-500">
+                  • {shahiMixIngredients.length} Ingredients, {shahiMixBoxes.length} Packaging Styles
+                </span>
+              </div>
+              <h2 className="font-serif text-2xl font-bold text-[#242821] mt-1">
+                Custom Shahi Mix Builder Management
+              </h2>
+              <p className="text-xs text-gray-500">
+                Configure ingredient options, portion weights in grams (100g, 250g, 500g, 1kg), gram prices, stock availability, and outer luxury tin/wooden box packaging styles.
+              </p>
+            </div>
+
+            {/* Sub-tab Switchers */}
+            <div className="flex items-center p-1 bg-[#F8F5ED] rounded-2xl border border-[#E8DDCA]">
+              <button
+                onClick={() => setShahiMixSubTab('ingredients')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  shahiMixSubTab === 'ingredients'
+                    ? 'bg-[#244C37] text-white shadow-xs'
+                    : 'text-gray-600 hover:text-[#244C37]'
+                }`}
+              >
+                Ingredients ({shahiMixIngredients.length})
+              </button>
+              <button
+                onClick={() => setShahiMixSubTab('boxes')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  shahiMixSubTab === 'boxes'
+                    ? 'bg-[#244C37] text-white shadow-xs'
+                    : 'text-gray-600 hover:text-[#244C37]'
+                }`}
+              >
+                Box Packaging Styles ({shahiMixBoxes.length})
+              </button>
+            </div>
+          </div>
+
+          {/* Feedback message */}
+          {shahiMixFeedback && (
+            <div
+              className={`p-3.5 rounded-2xl text-xs font-semibold flex items-center justify-between ${
+                shahiMixFeedback.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                {shahiMixFeedback.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-600" />
+                )}
+                <span>{shahiMixFeedback.text}</span>
+              </div>
+              <button onClick={() => setShahiMixFeedback(null)} className="text-xs underline cursor-pointer">
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {/* SUB-TAB 1: INGREDIENTS */}
+          {shahiMixSubTab === 'ingredients' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-serif text-lg font-bold text-[#244C37]">
+                  Pantry Dry Fruits & Exotic Ingredients
+                </h3>
+                <button
+                  onClick={() => {
+                    setIngredientForm({
+                      name: '',
+                      image: '',
+                      inStock: true,
+                      price10g: 90,
+                      price50g: 450,
+                      price100g: 800,
+                      price250g: 1900,
+                      price500g: 3700,
+                      price1kg: 7200,
+                    });
+                    setIsIngredientModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-sm cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add New Ingredient</span>
+                </button>
+              </div>
+
+              <div className="bg-white rounded-3xl border border-[#E8DDCA] overflow-hidden shadow-xs">
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-xs min-w-[700px]">
+                    <thead>
+                      <tr className="bg-[#F8F5ED] border-b border-[#E8DDCA] text-left text-gray-500 uppercase text-[10px]">
+                        <th className="p-3">Ingredient</th>
+                        <th className="p-3">Portion Prices (100g / 250g / 500g / 1kg)</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {shahiMixIngredients.map((ing) => {
+                        const p10 = ing.portions.find((p) => p.weight === '10g')?.price || 0;
+                        const p50 = ing.portions.find((p) => p.weight === '50g')?.price || 0;
+                        const p100 = ing.portions.find((p) => p.weight === '100g')?.price || 0;
+                        const p250 = ing.portions.find((p) => p.weight === '250g')?.price || 0;
+                        const p500 = ing.portions.find((p) => p.weight === '500g')?.price || 0;
+                        const p1k = ing.portions.find((p) => p.weight === '1kg')?.price || 0;
+
+                        return (
+                          <tr key={ing.id} className="hover:bg-gray-50/50">
+                            <td className="p-3">
+                              <div className="flex items-center space-x-3">
+                                <img
+                                  src={ing.image}
+                                  alt={ing.name}
+                                  className="w-10 h-10 rounded-lg object-cover border border-[#E8DDCA]"
+                                />
+                                <div>
+                                  <span className="font-bold text-[#242821] block">{ing.name}</span>
+                                  <span className="text-[10px] text-gray-400 font-mono">ID: {ing.id}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                                {p10 > 0 && (
+                                  <span className="px-2 py-0.5 rounded-md bg-[#F8F5ED] border border-[#E8DDCA] text-[10px]">
+                                    <strong>10g:</strong> Rs. {p10}
+                                  </span>
+                                )}
+                                {p50 > 0 && (
+                                  <span className="px-2 py-0.5 rounded-md bg-[#F8F5ED] border border-[#E8DDCA] text-[10px]">
+                                    <strong>50g:</strong> Rs. {p50}
+                                  </span>
+                                )}
+                                <span className="px-2 py-0.5 rounded-md bg-[#F8F5ED] border border-[#E8DDCA] text-[10px]">
+                                  <strong>100g:</strong> Rs. {p100}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-md bg-[#F8F5ED] border border-[#E8DDCA] text-[10px]">
+                                  <strong>250g:</strong> Rs. {p250}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-md bg-[#F8F5ED] border border-[#E8DDCA] text-[10px]">
+                                  <strong>500g:</strong> Rs. {p500}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-md bg-[#F8F5ED] border border-[#E8DDCA] text-[10px]">
+                                  <strong>1kg:</strong> Rs. {p1k}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  ing.inStock ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                {ing.inStock ? 'In Stock' : 'Out of Stock'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              <button
+                                onClick={async () => {
+                                  if (confirm(`Remove ingredient "${ing.name}" from Shahi Mix builder?`)) {
+                                    await deleteShahiMixIngredient(ing.id);
+                                    setShahiMixFeedback({ type: 'success', text: `Removed ${ing.name}` });
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg border border-[#E8DDCA] hover:bg-red-50 text-red-600 cursor-pointer"
+                                title="Delete Ingredient"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 2: BOX PACKAGING OPTIONS */}
+          {shahiMixSubTab === 'boxes' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-serif text-lg font-bold text-[#244C37]">
+                  Outer Luxury Box Packaging Styles
+                </h3>
+                <button
+                  onClick={() => {
+                    setBoxForm({
+                      name: '',
+                      urduName: '',
+                      capacity: 4,
+                      basePrice: 1950,
+                      image: '',
+                      description: '',
+                    });
+                    setIsBoxModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-sm cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Box Packaging Option</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {shahiMixBoxes.map((box) => (
+                  <div
+                    key={box.id}
+                    className="bg-white rounded-3xl border border-[#E8DDCA] overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="aspect-16/9 w-full bg-[#F8F5ED] relative overflow-hidden">
+                        <img
+                          src={box.image}
+                          alt={box.name}
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute top-3 left-3 bg-[#244C37]/90 backdrop-blur-md text-[#B69A62] text-[10px] font-bold px-2.5 py-1 rounded-full">
+                          {box.capacity} Compartments Slot
+                        </span>
+                        <span className="absolute top-3 right-3 bg-[#B69A62] text-[#344B36] text-[11px] font-bold font-mono px-2.5 py-1 rounded-full">
+                          Base Price: Rs. {box.basePrice.toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="p-5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-serif text-base font-bold text-[#242821]">{box.name}</h4>
+                        </div>
+                        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                          {box.description || 'Handcrafted velvet or tin partition gift box.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-5 pt-3 border-t border-[#E8DDCA]/60 flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400 font-mono">ID: {box.id}</span>
+                      <button
+                        onClick={async () => {
+                          if (confirm(`Delete box option "${box.name}"?`)) {
+                            await deleteShahiMixBox(box.id);
+                            setShahiMixFeedback({ type: 'success', text: `Deleted box style ${box.name}` });
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold flex items-center space-x-1.5 cursor-pointer border border-rose-200"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete Box</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Add New Ingredient Modal */}
+      {isIngredientModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-[#E8DDCA] overflow-hidden my-8">
+            <div className="p-6 border-b border-[#E8DDCA] flex items-center justify-between bg-[#F8F5ED]">
+              <div>
+                <span className="text-xs font-mono uppercase tracking-wider text-[#B69A62] font-bold">
+                  Custom Shahi Mix
+                </span>
+                <h2 className="font-serif text-xl font-bold text-[#242821] mt-0.5">
+                  Add Shahi Mix Ingredient
+                </h2>
+              </div>
+              <button
+                onClick={() => setIsIngredientModalOpen(false)}
+                className="p-2 rounded-full hover:bg-gray-200 text-gray-500 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!ingredientForm.name.trim()) return;
+
+                const newIng = {
+                  id: `ing-${Date.now()}`,
+                  name: ingredientForm.name.trim(),
+                  image:
+                    ingredientForm.image.trim() ||
+                    'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp',
+                  inStock: ingredientForm.inStock,
+                  portions: [
+                    { id: `p10-${Date.now()}`, weight: '10g', weightGrams: 10, price: ingredientForm.price10g },
+                    { id: `p50-${Date.now()}`, weight: '50g', weightGrams: 50, price: ingredientForm.price50g },
+                    { id: `p100-${Date.now()}`, weight: '100g', weightGrams: 100, price: ingredientForm.price100g },
+                    { id: `p250-${Date.now()}`, weight: '250g', weightGrams: 250, price: ingredientForm.price250g },
+                    { id: `p500-${Date.now()}`, weight: '500g', weightGrams: 500, price: ingredientForm.price500g },
+                    { id: `p1kg-${Date.now()}`, weight: '1kg', weightGrams: 1000, price: ingredientForm.price1kg },
+                  ],
+                };
+
+                await addShahiMixIngredient(newIng);
+                setIsIngredientModalOpen(false);
+                setShahiMixFeedback({ type: 'success', text: `Added ${newIng.name} to Shahi Mix ingredient pool.` });
+              }}
+              className="p-6 space-y-4 text-xs"
+            >
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Ingredient Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Royal Pine Nuts"
+                  value={ingredientForm.name}
+                  onChange={(e) => setIngredientForm({ ...ingredientForm, name: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Image URL</label>
+                <input
+                  type="url"
+                  placeholder="https://images.unsplash.com/..."
+                  value={ingredientForm.image}
+                  onChange={(e) => setIngredientForm({ ...ingredientForm, image: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-mono text-[11px]"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-[#244C37] block mb-2">Portion Weight Prices (PKR) *</label>
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                  <div>
+                    <span className="text-[10px] text-gray-500 font-bold block mb-1">10g Price</span>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={ingredientForm.price10g}
+                      onChange={(e) => setIngredientForm({ ...ingredientForm, price10g: Number(e.target.value) })}
+                      className="w-full p-2 rounded-lg border border-[#E8DDCA] bg-[#F8F5ED] text-center font-bold text-xs"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-500 font-bold block mb-1">50g Price</span>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={ingredientForm.price50g}
+                      onChange={(e) => setIngredientForm({ ...ingredientForm, price50g: Number(e.target.value) })}
+                      className="w-full p-2 rounded-lg border border-[#E8DDCA] bg-[#F8F5ED] text-center font-bold text-xs"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-500 font-bold block mb-1">100g Price</span>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={ingredientForm.price100g}
+                      onChange={(e) => setIngredientForm({ ...ingredientForm, price100g: Number(e.target.value) })}
+                      className="w-full p-2 rounded-lg border border-[#E8DDCA] bg-[#F8F5ED] text-center font-bold text-xs"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-500 font-bold block mb-1">250g Price</span>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={ingredientForm.price250g}
+                      onChange={(e) => setIngredientForm({ ...ingredientForm, price250g: Number(e.target.value) })}
+                      className="w-full p-2 rounded-lg border border-[#E8DDCA] bg-[#F8F5ED] text-center font-bold text-xs"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-500 font-bold block mb-1">500g Price</span>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={ingredientForm.price500g}
+                      onChange={(e) => setIngredientForm({ ...ingredientForm, price500g: Number(e.target.value) })}
+                      className="w-full p-2 rounded-lg border border-[#E8DDCA] bg-[#F8F5ED] text-center font-bold text-xs"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-500 font-bold block mb-1">1kg Price</span>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={ingredientForm.price1kg}
+                      onChange={(e) => setIngredientForm({ ...ingredientForm, price1kg: Number(e.target.value) })}
+                      className="w-full p-2 rounded-lg border border-[#E8DDCA] bg-[#F8F5ED] text-center font-bold text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ingredientForm.inStock}
+                    onChange={(e) => setIngredientForm({ ...ingredientForm, inStock: e.target.checked })}
+                    className="rounded text-[#244C37]"
+                  />
+                  <span className="font-semibold text-gray-700">Available in Stock for Custom Boxes</span>
+                </label>
+              </div>
+
+              <div className="pt-3 border-t border-[#E8DDCA] flex items-center justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setIsIngredientModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#244C37] text-white font-bold rounded-xl shadow-sm cursor-pointer hover:bg-[#1A3828]"
+                >
+                  Save Ingredient
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Box Modal */}
+      {isBoxModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-[#E8DDCA] overflow-hidden my-8">
+            <div className="p-6 border-b border-[#E8DDCA] flex items-center justify-between bg-[#F8F5ED]">
+              <div>
+                <span className="text-xs font-mono uppercase tracking-wider text-[#B69A62] font-bold">
+                  Custom Packaging
+                </span>
+                <h2 className="font-serif text-xl font-bold text-[#242821] mt-0.5">
+                  Add Luxury Box Style
+                </h2>
+              </div>
+              <button
+                onClick={() => setIsBoxModalOpen(false)}
+                className="p-2 rounded-full hover:bg-gray-200 text-gray-500 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!boxForm.name.trim()) return;
+
+                const newBox = {
+                  id: `box-${Date.now()}`,
+                  name: boxForm.name.trim(),
+                  urduName: boxForm.urduName.trim() || boxForm.name.trim(),
+                  capacity: Number(boxForm.capacity) as 4 | 6,
+                  basePrice: Number(boxForm.basePrice),
+                  image:
+                    boxForm.image.trim() ||
+                    'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=600&q=70',
+                  description: boxForm.description.trim() || 'Royal handcrafted presentation box.',
+                };
+
+                await addShahiMixBox(newBox);
+                setIsBoxModalOpen(false);
+                setShahiMixFeedback({ type: 'success', text: `Added packaging style ${newBox.name}` });
+              }}
+              className="p-6 space-y-4 text-xs"
+            >
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Box Style Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Regal Octagon Wooden Box"
+                  value={boxForm.name}
+                  onChange={(e) => setBoxForm({ ...boxForm, name: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Partition Capacity *</label>
+                  <select
+                    value={boxForm.capacity}
+                    onChange={(e) => setBoxForm({ ...boxForm, capacity: Number(e.target.value) as 4 | 6 })}
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-bold"
+                  >
+                    <option value={4}>4 Compartments / Slots</option>
+                    <option value={6}>6 Compartments / Slots</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Base Box Price (PKR) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    value={boxForm.basePrice}
+                    onChange={(e) => setBoxForm({ ...boxForm, basePrice: Number(e.target.value) })}
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Box Image URL</label>
+                <input
+                  type="url"
+                  placeholder="https://images.unsplash.com/..."
+                  value={boxForm.image}
+                  onChange={(e) => setBoxForm({ ...boxForm, image: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-mono text-[11px]"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Short Description</label>
+                <textarea
+                  rows={2}
+                  placeholder="Hand-crafted wood finish with gold foil logo insert."
+                  value={boxForm.description}
+                  onChange={(e) => setBoxForm({ ...boxForm, description: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-[#E8DDCA] flex items-center justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setIsBoxModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#244C37] text-white font-bold rounded-xl shadow-sm cursor-pointer hover:bg-[#1A3828]"
+                >
+                  Save Box Packaging
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: ORDERS MANAGEMENT (Active, Completed, Returns) */}
+      {(activeTab === 'orders' || activeTab === 'completed-orders' || activeTab === 'returns') && (
+        <div className="py-6 space-y-6">
+          <div className="flex items-center space-x-2">
+            <div className={`p-2 rounded-xl ${
+              activeTab === 'orders' ? 'bg-blue-50 text-blue-600' : 
+              activeTab === 'completed-orders' ? 'bg-emerald-50 text-emerald-600' : 
+              'bg-rose-50 text-rose-600'
+            }`}>
+              {activeTab === 'orders' && <ShoppingBag className="w-5 h-5" />}
+              {activeTab === 'completed-orders' && <CheckCircle2 className="w-5 h-5" />}
+              {activeTab === 'returns' && <RotateCcw className="w-5 h-5" />}
+            </div>
+            <h2 className="font-serif text-2xl font-bold text-[#244C37]">
+              {activeTab === 'orders' && 'Active Customer Orders'}
+              {activeTab === 'completed-orders' && 'Completed (Delivered) Orders'}
+              {activeTab === 'returns' && 'Customer Returns'}
+            </h2>
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center space-x-2 flex-1 max-w-md">
+            <div className="flex items-center space-x-2 flex-1 max-w-2xl">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
                   value={orderSearch}
                   onChange={(e) => setOrderSearch(e.target.value)}
-                  placeholder="Search by Order ID, customer name, or phone..."
+                  placeholder="Search orders..."
                   className="w-full text-xs pl-9 pr-3 py-2 bg-white rounded-xl border border-[#E8DDCA]"
                 />
               </div>
@@ -576,95 +2031,364 @@ export const AdminDashboard: React.FC = () => {
                 <option value="Delivered">Delivered</option>
                 <option value="Cancelled">Cancelled</option>
               </select>
+
+              <button
+                onClick={handleExportOrders}
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-xl flex items-center space-x-1.5 shadow-sm transition-colors cursor-pointer shrink-0"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export to Excel (CSV)</span>
+              </button>
             </div>
 
-            <span className="text-xs text-gray-500">
-              Showing {filteredOrders.length} of {orders.length} orders
+            <span className="text-xs text-gray-500 whitespace-nowrap">
+              {filteredOrders.length} Orders Found
             </span>
           </div>
 
-          <div className="space-y-4">
-            {filteredOrders.map((ord) => (
-              <div
-                key={ord.id}
-                className="p-5 bg-white rounded-3xl border border-[#E8DDCA] shadow-xs space-y-4"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-gray-100 gap-2">
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-serif font-bold text-base text-[#244C37]">
-                        {ord.orderNumber}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        • {new Date(ord.createdAt).toLocaleDateString()}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 font-semibold text-gray-700">
-                        {ord.paymentMethod} ({ord.paymentStatus})
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      Customer: <strong>{ord.customerName}</strong> ({ord.customerPhone}) • {ord.address}, {ord.city}
-                    </p>
-                  </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-[11px] min-w-[1400px] border-collapse">
+                <thead>
+                  <tr className="bg-gray-100 border-b border-gray-300 text-left text-gray-700 uppercase font-bold">
+                    <th className="p-2 border-r border-gray-300">Order ID</th>
+                    <th className="p-2 border-r border-gray-300">Date</th>
+                    <th className="p-2 border-r border-gray-300">Customer Name</th>
+                    <th className="p-2 border-r border-gray-300">Phone</th>
+                    <th className="p-2 border-r border-gray-300">City</th>
+                    <th className="p-2 border-r border-gray-300">Full Address</th>
+                    <th className="p-2 border-r border-gray-300">Items Detail</th>
+                    <th className="p-2 border-r border-gray-300">Total (PKR)</th>
+                    <th className="p-2 border-r border-gray-300">Payment</th>
+                    <th className="p-2 border-r border-gray-300">Order Status</th>
+                    <th className="p-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="p-12 text-center text-gray-400 italic bg-gray-50">
+                        No orders match your current filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredOrders.map((ord) => (
+                      <tr key={ord.id} className="hover:bg-blue-50/30 transition-colors">
+                        <td className="p-2 border-r border-gray-200 font-mono font-bold text-gray-900 bg-gray-50/50">
+                          {ord.orderNumber}
+                        </td>
+                        <td className="p-2 border-r border-gray-200 whitespace-nowrap">
+                          {new Date(ord.createdAt).toLocaleDateString()} {new Date(ord.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="p-2 border-r border-gray-200 font-semibold">
+                          {ord.customerName}
+                        </td>
+                        <td className="p-2 border-r border-gray-200 font-mono">
+                          {ord.customerPhone}
+                        </td>
+                        <td className="p-2 border-r border-gray-200">
+                          {ord.city}
+                        </td>
+                        <td className="p-2 border-r border-gray-200 leading-relaxed min-w-[200px]">
+                          {ord.address}
+                        </td>
+                        <td className="p-2 border-r border-gray-200">
+                          <div className="space-y-1">
+                            {ord.items.map((it, idx) => (
+                              <div key={idx} className="flex items-center space-x-1.5 border-b border-gray-50 last:border-0 pb-1 mb-1">
+                                <span className="font-bold text-[#244C37]">{it.quantity}x</span>
+                                <span>{it.productName} ({it.variantWeight})</span>
+                              </div>
+                            ))}
+                            {ord.internalNotes && ord.internalNotes.length > 0 && (
+                              <div className="mt-1 p-1 bg-amber-50 text-[9px] text-amber-700 rounded italic">
+                                Note: {ord.internalNotes.slice(-1)[0]}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-2 border-r border-gray-200 font-bold text-[#244C37] text-right">
+                          {ord.totalAmount.toLocaleString()}
+                        </td>
+                        <td className="p-2 border-r border-gray-200 text-center">
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${ord.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {ord.paymentMethod}
+                          </span>
+                        </td>
+                        <td className="p-2 border-r border-gray-200">
+                          <select
+                            value={ord.orderStatus}
+                            onChange={(e) =>
+                              updateOrderStatus(
+                                ord.id,
+                                e.target.value as OrderStatus,
+                                `Admin changed status to ${e.target.value}`
+                              )
+                            }
+                            className={`w-full text-[10px] p-1 rounded border font-bold ${
+                              ord.orderStatus === 'Delivered'
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                : ord.orderStatus === 'Cancelled'
+                                ? 'bg-red-50 border-red-200 text-red-800'
+                                : 'bg-white border-gray-300'
+                            }`}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="Confirmed">Confirmed</option>
+                            <option value="Processing">Processing</option>
+                            <option value="Packed">Packed</option>
+                            <option value="Shipped">Shipped</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        </td>
+                        <td className="p-2 text-right">
+                          <div className="flex items-center justify-end space-x-1">
+                            <button className="p-1 rounded bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-500 transition-colors">
+                              <Printer className="w-3 h-3" />
+                            </button>
+                            <button className="p-1 rounded bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-500 transition-colors">
+                              <Eye className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
-                  <div className="flex items-center space-x-3">
-                    <span className="font-serif text-lg font-bold text-[#244C37]">
-                      Rs. {ord.totalAmount.toLocaleString()}
-                    </span>
+      {/* TAB 3.5: CUSTOMERS MANAGEMENT */}
+      {activeTab === 'customers' && (
+        <div className="py-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h3 className="font-serif text-xl font-bold text-[#244C37]">
+              Customer Directory & Lifetime Value
+            </h3>
+            <div className="text-xs text-gray-500">
+              Unique Customers: <strong>{uniqueCustomers.length}</strong>
+            </div>
+          </div>
 
-                    {/* Status Changer Dropdown */}
-                    <select
-                      value={ord.orderStatus}
-                      onChange={(e) =>
-                        updateOrderStatus(
-                          ord.id,
-                          e.target.value as OrderStatus,
-                          `Admin changed status to ${e.target.value}`
-                        )
-                      }
-                      className="text-xs p-1.5 rounded-lg border border-[#E8DDCA] bg-[#F8F5ED] font-bold text-[#244C37]"
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Confirmed">Confirmed</option>
-                      <option value="Processing">Processing</option>
-                      <option value="Packed">Packed</option>
-                      <option value="Shipped">Shipped</option>
-                      <option value="Delivered">Delivered</option>
-                      <option value="Cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Items in this order */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {ord.items.map((it, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2 rounded-xl bg-[#F8F5ED] border border-[#E8DDCA]/60 flex items-center space-x-2 text-xs"
-                    >
-                      <img
-                        src={it.imageUrl}
-                        alt=""
-                        className="w-8 h-8 rounded-md object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold truncate">{it.productName}</p>
-                        <p className="text-[11px] text-gray-500">
-                          {it.variantWeight} × {it.quantity} (Rs.{' '}
-                          {it.price.toLocaleString()})
-                        </p>
-                      </div>
-                    </div>
+          <div className="bg-white rounded-3xl border border-[#E8DDCA] overflow-hidden shadow-xs">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-xs min-w-[700px]">
+                <thead>
+                  <tr className="bg-[#F8F5ED] border-b border-[#E8DDCA] text-left text-gray-500 uppercase text-[10px] font-bold">
+                    <th className="p-4">Customer Name</th>
+                    <th className="p-4">Contact Info</th>
+                    <th className="p-4 text-center">Orders</th>
+                    <th className="p-4">Total Revenue (LTV)</th>
+                    <th className="p-4">Last Order</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {uniqueCustomers.map((cust) => (
+                    <tr key={cust.phone} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-full bg-[#F8F5ED] border border-[#E8DDCA] flex items-center justify-center font-bold text-[#244C37]">
+                            {cust.name.charAt(0)}
+                          </div>
+                          <span className="font-bold text-gray-900">{cust.name}</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="space-y-0.5">
+                          <span className="flex items-center space-x-1.5 font-mono">
+                            <Phone className="w-3 h-3 text-gray-400" />
+                            <span>{cust.phone}</span>
+                          </span>
+                          <span className="flex items-center space-x-1.5 text-gray-400">
+                            <MapPin className="w-3 h-3" />
+                            <span>{cust.city}</span>
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#F8F5ED] border border-[#E8DDCA] text-[#244C37] font-bold">
+                          {cust.ordersCount}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-serif font-bold text-[#244C37] text-sm">
+                          Rs. {cust.totalSpent.toLocaleString()}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="text-[10px] text-gray-500">
+                          {new Date(cust.lastOrderDate).toLocaleDateString()}
+                        </div>
+                      </td>
+                      <td className="p-4 text-right">
+                        <button 
+                          onClick={() => {
+                            setOrderSearch(cust.phone);
+                            setActiveTab('orders');
+                          }}
+                          className="px-3 py-1.5 rounded-xl border border-[#E8DDCA] hover:bg-[#F8F5ED] text-gray-600 text-[10px] font-bold transition-all cursor-pointer"
+                        >
+                          View Order History
+                        </button>
+                      </td>
+                    </tr>
                   ))}
-                </div>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
-                {ord.internalNotes && ord.internalNotes.length > 0 && (
-                  <div className="text-[11px] text-gray-500 bg-gray-50 p-2 rounded-lg">
-                    <strong>Admin Notes:</strong> {ord.internalNotes.join(' | ')}
-                  </div>
-                )}
-              </div>
-            ))}
+      {/* TAB 3.7: WHOLESALE & CORPORATE LEADS */}
+      {activeTab === 'wholesale' && (
+        <div className="py-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-serif text-xl font-bold text-[#244C37]">
+                Wholesale & Corporate Inquiries
+              </h3>
+              <p className="text-xs text-gray-500">Manage bulk orders, corporate gifting leads, and event inquiries.</p>
+            </div>
+            <button 
+              onClick={() => {
+                const csv = [
+                  ['Company', 'Contact', 'Type', 'Quantity', 'Phone', 'Email', 'Status', 'Date'].join(','),
+                  ...wholesaleInquiries.map(w => [
+                    w.companyName,
+                    w.contactName,
+                    w.inquiryType,
+                    w.estimatedQuantity,
+                    w.phone,
+                    w.email,
+                    w.status,
+                    new Date(w.createdAt).toLocaleDateString()
+                  ].join(','))
+                ].join('\n');
+                handleDownloadFile(csv, `wholesale_leads_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+              }}
+              className="px-4 py-2 bg-white border border-[#E8DDCA] text-[#244C37] text-xs font-bold rounded-xl flex items-center space-x-2 hover:bg-[#F8F5ED] cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              <span>Export Leads CSV</span>
+            </button>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-[#E8DDCA] overflow-hidden shadow-xs">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-xs min-w-[900px] border-collapse">
+                <thead>
+                  <tr className="bg-[#F8F5ED] border-b border-[#E8DDCA] text-left text-gray-500 uppercase text-[10px] font-bold">
+                    <th className="p-4 border-r border-[#E8DDCA]">Lead Date</th>
+                    <th className="p-4 border-r border-[#E8DDCA]">Company & Contact</th>
+                    <th className="p-4 border-r border-[#E8DDCA]">Type</th>
+                    <th className="p-4 border-r border-[#E8DDCA]">Requirements</th>
+                    <th className="p-4 border-r border-[#E8DDCA]">Contact Info</th>
+                    <th className="p-4 border-r border-[#E8DDCA]">Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {wholesaleInquiries.length > 0 ? wholesaleInquiries.map((inquiry) => (
+                    <tr key={inquiry.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="p-4 border-r border-gray-50 font-mono text-gray-500">
+                        {new Date(inquiry.createdAt).toLocaleDateString()}<br/>
+                        {new Date(inquiry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="p-4 border-r border-gray-50">
+                        <div className="font-bold text-[#244C37]">{inquiry.companyName}</div>
+                        <div className="text-gray-500">{inquiry.contactName}</div>
+                      </td>
+                      <td className="p-4 border-r border-gray-50">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                          inquiry.inquiryType === 'Corporate Gifting' ? 'bg-purple-100 text-purple-700' :
+                          inquiry.inquiryType === 'Wholesale Purchase' ? 'bg-blue-100 text-blue-700' :
+                          inquiry.inquiryType === 'Wedding Favors' ? 'bg-pink-100 text-pink-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {inquiry.inquiryType}
+                        </span>
+                      </td>
+                      <td className="p-4 border-r border-gray-50">
+                        <div className="font-semibold text-gray-900">Qty: {inquiry.estimatedQuantity}</div>
+                        {inquiry.eventDate && (
+                          <div className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                            <Calendar className="w-3 h-3" /> {new Date(inquiry.eventDate).toLocaleDateString()}
+                          </div>
+                        )}
+                        <div className="mt-2 text-gray-600 line-clamp-2 italic" title={inquiry.message}>
+                          "{inquiry.message}"
+                        </div>
+                      </td>
+                      <td className="p-4 border-r border-gray-50">
+                        <div className="flex flex-col gap-1.5">
+                          <a href={`tel:${inquiry.phone}`} className="flex items-center gap-1.5 text-[#244C37] font-bold hover:underline">
+                            <Phone className="w-3 h-3" /> {inquiry.phone}
+                          </a>
+                          <a href={`mailto:${inquiry.email}`} className="flex items-center gap-1.5 text-gray-500 hover:text-[#244C37]">
+                            <Mail className="w-3 h-3" /> {inquiry.email}
+                          </a>
+                        </div>
+                      </td>
+                      <td className="p-4 border-r border-gray-50">
+                        <select
+                          value={inquiry.status}
+                          onChange={(e) => updateWholesaleStatus(inquiry.id, e.target.value as any)}
+                          className={`w-full text-[10px] font-bold px-2 py-1 rounded-lg border focus:ring-1 focus:ring-[#B69A62] outline-none ${
+                            inquiry.status === 'New' ? 'bg-red-50 text-red-700 border-red-200' :
+                            inquiry.status === 'Contacted' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            inquiry.status === 'Quoted' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                            inquiry.status === 'Converted' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            'bg-gray-50 text-gray-700 border-gray-200'
+                          }`}
+                        >
+                          <option value="New">NEW</option>
+                          <option value="Contacted">CONTACTED</option>
+                          <option value="Quoted">QUOTED</option>
+                          <option value="Converted">CONVERTED</option>
+                          <option value="Closed">CLOSED</option>
+                        </select>
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <a 
+                            href={`https://wa.me/${inquiry.phone.replace(/[^0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            title="WhatsApp Client"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                          </a>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete inquiry from ${inquiry.companyName}?`)) {
+                                deleteWholesaleInquiry(inquiry.id);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg border border-[#E8DDCA] hover:bg-red-50 hover:text-red-600 text-gray-600 cursor-pointer"
+                            title="Delete Inquiry"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={7} className="p-12 text-center text-gray-400">
+                        No wholesale inquiries found yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -735,6 +2459,36 @@ export const AdminDashboard: React.FC = () => {
       {/* TAB 5: COUPONS */}
       {activeTab === 'coupons' && (
         <div className="py-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-[#E8DDCA] shadow-xs">
+            <div>
+              <h3 className="font-serif text-lg font-bold text-[#244C37]">
+                Store Coupon Codes & Promotions ({coupons.length})
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Manage promotional discount codes, minimum order thresholds, and activation status in real-time.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setCouponForm({
+                  code: '',
+                  discountType: 'percentage',
+                  discountValue: 10,
+                  minOrderAmount: 2000,
+                  isActive: true,
+                  expiryDate: '2026-12-31',
+                  usageCount: 0,
+                });
+                setIsCouponModalOpen(true);
+              }}
+              className="px-4 py-2 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-sm cursor-pointer shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Coupon</span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {coupons.map((c) => (
               <div
@@ -769,6 +2523,11 @@ export const AdminDashboard: React.FC = () => {
                     Min Order: Rs. {c.minOrderAmount.toLocaleString()} • Used:{' '}
                     {c.usageCount} times
                   </p>
+                  {c.expiryDate && (
+                    <p className="text-[10px] text-gray-400 mt-1 font-mono">
+                      Expires: {c.expiryDate}
+                    </p>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t border-gray-100 mt-4 flex items-center justify-between">
@@ -779,7 +2538,11 @@ export const AdminDashboard: React.FC = () => {
                     {c.isActive ? 'Disable' : 'Enable'}
                   </button>
                   <button
-                    onClick={() => deleteCoupon(c.code)}
+                    onClick={() => {
+                      if (confirm(`Delete coupon code "${c.code}"?`)) {
+                        deleteCoupon(c.code);
+                      }
+                    }}
                     className="text-xs text-red-600 hover:underline cursor-pointer"
                   >
                     Delete
@@ -1056,8 +2819,555 @@ export const AdminDashboard: React.FC = () => {
               <li>Connect via <strong>SFTP / WebFTP</strong> to the IONOS root and copy the files into your `public_html` directory.</li>
               <li>Update `config/database.php` with your IONOS database host and credentials.</li>
               <li>Ensure PHP version is set to <strong>PHP 8.2 or 8.3</strong> in IONOS Domain Settings.</li>
-              <li>Your store is live! Access the admin panel at `https://yourdomain.com/admin` with default credentials: `admin@zauqesehat.pk` / `Admin@Zauq2026!`.</li>
+              <li>Your store is live! Access the admin panel at `https://yourdomain.com/admin` with default credentials: `eirvanfoods@gmail.com` / `Admin@Zauq2026!`.</li>
             </ol>
+          </div>
+        </div>
+      )}
+      </div>
+      </div>
+
+      {/* Product Edit / Create Modal */}
+      {editingProduct && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-[#E8DDCA] overflow-hidden my-8 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-[#E8DDCA] flex items-center justify-between bg-[#F8F5ED]">
+              <div>
+                <span className="text-xs font-mono uppercase tracking-wider text-[#C99A45] font-bold">
+                  {isNewProduct ? 'Create New Harvest' : 'Edit Harvest Catalog'}
+                </span>
+                <h2 className="font-serif text-2xl font-bold text-[#242821] mt-0.5">
+                  {isNewProduct ? 'Add Mountain Product' : editingProduct.name}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingProduct(null)}
+                className="p-2 rounded-full hover:bg-gray-200 text-gray-500 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProduct} className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Product Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Kashmiri Mamra Almonds"
+                  value={editingProduct.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    const newSlug = generateSlug(name);
+                    const currentAutoSlug = generateSlug(editingProduct.name);
+                    const shouldAutoUpdateSlug = isNewProduct || !editingProduct.slug || editingProduct.slug === currentAutoSlug;
+                    
+                    setEditingProduct({
+                      ...editingProduct,
+                      name,
+                      slug: shouldAutoUpdateSlug ? newSlug : editingProduct.slug,
+                    });
+                  }}
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-gray-700 block">URL Slug *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const autoSlug = generateSlug(editingProduct.name);
+                        if (autoSlug) {
+                          setEditingProduct({ ...editingProduct, slug: autoSlug });
+                        }
+                      }}
+                      title="Auto-fill slug from English name"
+                      className="text-[10px] text-[#244C37] hover:underline font-medium cursor-pointer"
+                    >
+                      Auto-generate
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. kashmiri-mamra-almonds"
+                    value={editingProduct.slug}
+                    onChange={(e) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        slug: e.target.value
+                          .toLowerCase()
+                          .replace(/[^a-z0-9_-]+/g, '-'),
+                      })
+                    }
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-mono text-[11px]"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1 truncate">
+                    /product/{editingProduct.slug || generateSlug(editingProduct.name) || 'product-slug'}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Category *</label>
+                  <select
+                    value={editingProduct.category}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      const foundCat = categoriesList.find((c) => c.id === selectedId);
+                      setEditingProduct({
+                        ...editingProduct,
+                        category: selectedId,
+                        categoryLabel: foundCat ? foundCat.name : 'Premium Harvest',
+                      });
+                    }}
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-medium"
+                  >
+                    {categoriesList.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Origin *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingProduct.origin}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, origin: e.target.value })}
+                    placeholder="e.g. Kashmir Valley, Gilgit"
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Image URL *</label>
+                <div className="flex gap-3 items-center">
+                  <input
+                    type="url"
+                    required
+                    value={editingProduct.imageUrl}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, imageUrl: e.target.value })}
+                    placeholder="https://..."
+                    className="flex-1 p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-mono text-[11px]"
+                  />
+                  {editingProduct.imageUrl && (
+                    <img
+                      src={editingProduct.imageUrl}
+                      alt="Preview"
+                      className="w-10 h-10 rounded-xl object-cover border border-[#E8DDCA]"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=480&q=65&fm=webp'; }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Short Description *</label>
+                <textarea
+                  rows={2}
+                  required
+                  value={editingProduct.shortDescription}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, shortDescription: e.target.value })}
+                  placeholder="One sentence summary for catalog cards"
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Detailed Description *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={editingProduct.description}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                  placeholder="In-depth botanical, sourcing and preparation story"
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+
+              {/* Portion Variants & Prices */}
+              <div className="space-y-3 pt-2 border-t border-[#E8DDCA]">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-gray-700 uppercase tracking-wider text-[11px]">
+                    Portion Weights, Prices & Stock Inventory
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newV: ProductVariant = {
+                        id: `v-${Date.now()}-${editingProduct.variants.length + 1}`,
+                        weight: '250g',
+                        sku: `ZDS-GEN-${Math.floor(100 + Math.random() * 900)}`,
+                        price: 1500,
+                        stock: 20,
+                      };
+                      setEditingProduct({
+                        ...editingProduct,
+                        variants: [...editingProduct.variants, newV],
+                      });
+                    }}
+                    className="text-[11px] text-[#244C37] font-bold hover:underline cursor-pointer"
+                  >
+                    + Add Portion Weight
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {editingProduct.variants.map((variant, idx) => (
+                    <div
+                      key={variant.id || idx}
+                      className="p-3 bg-[#F8F5ED] rounded-xl border border-[#E8DDCA] grid grid-cols-1 sm:grid-cols-5 gap-2 items-center"
+                    >
+                      <div>
+                        <span className="text-[10px] text-gray-500 block">Portion / Weight:</span>
+                        <input
+                          type="text"
+                          required
+                          value={variant.weight}
+                          onChange={(e) => {
+                            const updated = [...editingProduct.variants];
+                            updated[idx] = { ...updated[idx], weight: e.target.value };
+                            setEditingProduct({ ...editingProduct, variants: updated });
+                          }}
+                          placeholder="e.g. 250g, 500g, 1kg"
+                          className="w-full p-1.5 rounded-lg border border-[#E8DDCA] bg-white font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-gray-500 block">SKU Code:</span>
+                        <input
+                          type="text"
+                          required
+                          value={variant.sku}
+                          onChange={(e) => {
+                            const updated = [...editingProduct.variants];
+                            updated[idx] = { ...updated[idx], sku: e.target.value };
+                            setEditingProduct({ ...editingProduct, variants: updated });
+                          }}
+                          className="w-full p-1.5 rounded-lg border border-[#E8DDCA] bg-white font-mono text-[11px]"
+                        />
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-gray-500 block">Regular Price (PKR):</span>
+                        <input
+                          type="number"
+                          required
+                          min={1}
+                          value={variant.price}
+                          onChange={(e) => {
+                            const updated = [...editingProduct.variants];
+                            updated[idx] = { ...updated[idx], price: Number(e.target.value) };
+                            setEditingProduct({ ...editingProduct, variants: updated });
+                          }}
+                          className="w-full p-1.5 rounded-lg border border-[#E8DDCA] bg-white font-semibold"
+                        />
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-gray-500 block">Sale Price (Optional):</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={variant.salePrice || ''}
+                          onChange={(e) => {
+                            const updated = [...editingProduct.variants];
+                            const val = e.target.value ? Number(e.target.value) : undefined;
+                            updated[idx] = { ...updated[idx], salePrice: val };
+                            setEditingProduct({ ...editingProduct, variants: updated });
+                          }}
+                          placeholder="None"
+                          className="w-full p-1.5 rounded-lg border border-[#E8DDCA] bg-white text-[#B96F50] font-semibold"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <span className="text-[10px] text-gray-500 block">Stock Qty:</span>
+                          <input
+                            type="number"
+                            min={0}
+                            required
+                            value={variant.stock}
+                            onChange={(e) => {
+                              const updated = [...editingProduct.variants];
+                              updated[idx] = { ...updated[idx], stock: Number(e.target.value) };
+                              setEditingProduct({ ...editingProduct, variants: updated });
+                            }}
+                            className="w-full p-1.5 rounded-lg border border-[#E8DDCA] bg-white font-bold"
+                          />
+                        </div>
+                        {editingProduct.variants.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = editingProduct.variants.filter((_, i) => i !== idx);
+                              setEditingProduct({ ...editingProduct, variants: updated });
+                            }}
+                            className="p-1.5 text-red-500 hover:text-red-700 cursor-pointer mt-4"
+                            title="Remove portion"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Toggles */}
+              <div className="flex flex-wrap gap-6 pt-3 border-t border-[#E8DDCA]">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingProduct.featured}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, featured: e.target.checked })}
+                    className="rounded text-[#244C37]"
+                  />
+                  <span className="font-semibold text-gray-700">Feature on Homepage</span>
+                </label>
+
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingProduct.bestSeller}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, bestSeller: e.target.checked })}
+                    className="rounded text-[#244C37]"
+                  />
+                  <span className="font-semibold text-gray-700">Curator&apos;s Best Seller Badge</span>
+                </label>
+
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingProduct.inStock}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, inStock: e.target.checked })}
+                    className="rounded text-[#244C37]"
+                  />
+                  <span className="font-semibold text-gray-700">In Stock for Ordering</span>
+                </label>
+              </div>
+
+              {/* Analytics & User Visits Field */}
+              <div className="p-4 bg-emerald-50/50 border border-emerald-200/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 rounded-xl bg-emerald-100 text-[#244C37]">
+                    <Eye className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-800 text-xs">Total User Visits Counter</h4>
+                    <p className="text-[11px] text-gray-500">
+                      Real-time counter incremented each time shoppers open this harvest product.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-gray-600 font-medium">Count:</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editingProduct.viewCount ?? 0}
+                    onChange={(e) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        viewCount: Math.max(0, parseInt(e.target.value, 10) || 0),
+                      })
+                    }
+                    className="w-24 p-1.5 rounded-xl border border-emerald-300 bg-white font-mono font-bold text-center text-xs"
+                  />
+                  <span className="text-[11px] text-gray-500">views</span>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#F8F5ED] rounded-2xl flex items-center justify-end space-x-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingProduct(null)}
+                  className="px-5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-gray-700 hover:bg-gray-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#244C37] hover:bg-[#1A3828] text-white font-bold shadow-md cursor-pointer flex items-center space-x-2"
+                >
+                  <span>{isNewProduct ? 'Create & Publish Harvest' : 'Save Changes'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Coupon Modal */}
+      {isCouponModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-[#E8DDCA] overflow-hidden my-8 flex flex-col">
+            <div className="p-6 border-b border-[#E8DDCA] flex items-center justify-between bg-[#F8F5ED]">
+              <div>
+                <span className="text-xs font-mono uppercase tracking-wider text-[#C99A45] font-bold">
+                  Promotional Offers
+                </span>
+                <h2 className="font-serif text-2xl font-bold text-[#242821] mt-0.5">
+                  Create New Coupon Code
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCouponModalOpen(false)}
+                className="p-2 rounded-full hover:bg-gray-200 text-gray-500 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCoupon} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">
+                  Coupon Promo Code *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. WINTER20, SEHAT500, EIDGIFT"
+                  value={couponForm.code}
+                  onChange={(e) =>
+                    setCouponForm({
+                      ...couponForm,
+                      code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''),
+                    })
+                  }
+                  className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-mono font-bold uppercase"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Letters, numbers, and hyphens only (auto-uppercased).
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">
+                    Discount Type *
+                  </label>
+                  <select
+                    value={couponForm.discountType}
+                    onChange={(e) =>
+                      setCouponForm({
+                        ...couponForm,
+                        discountType: e.target.value as 'percentage' | 'fixed',
+                      })
+                    }
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-semibold"
+                  >
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="fixed">Fixed Amount (PKR)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">
+                    Discount Value *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={couponForm.discountType === 'percentage' ? 100 : 50000}
+                    value={couponForm.discountValue}
+                    onChange={(e) =>
+                      setCouponForm({
+                        ...couponForm,
+                        discountValue: Math.max(1, parseInt(e.target.value, 10) || 0),
+                      })
+                    }
+                    placeholder={couponForm.discountType === 'percentage' ? '15' : '500'}
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">
+                    Minimum Order Amount (PKR) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    value={couponForm.minOrderAmount}
+                    onChange={(e) =>
+                      setCouponForm({
+                        ...couponForm,
+                        minOrderAmount: Math.max(0, parseInt(e.target.value, 10) || 0),
+                      })
+                    }
+                    placeholder="2000"
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">
+                    Expiry Date
+                  </label>
+                  <input
+                    type="date"
+                    value={couponForm.expiryDate || '2026-12-31'}
+                    onChange={(e) =>
+                      setCouponForm({
+                        ...couponForm,
+                        expiryDate: e.target.value,
+                      })
+                    }
+                    className="w-full p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] focus:bg-white focus:outline-hidden font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={couponForm.isActive}
+                    onChange={(e) =>
+                      setCouponForm({
+                        ...couponForm,
+                        isActive: e.target.checked,
+                      })
+                    }
+                    className="rounded text-[#244C37]"
+                  />
+                  <span className="font-semibold text-gray-700">Activate Coupon Immediately</span>
+                </label>
+              </div>
+
+              <div className="p-4 bg-[#F8F5ED] rounded-2xl flex items-center justify-end space-x-3 pt-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsCouponModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-gray-700 hover:bg-gray-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#244C37] hover:bg-[#1A3828] text-white font-bold shadow-md cursor-pointer flex items-center space-x-2"
+                >
+                  <span>Save & Publish Coupon</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

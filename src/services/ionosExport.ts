@@ -132,13 +132,15 @@ CREATE TABLE products (
     is_active TINYINT(1) DEFAULT 1,
     rating_cache DECIMAL(3, 2) DEFAULT 5.00,
     review_count_cache INT UNSIGNED DEFAULT 0,
+    view_count INT UNSIGNED DEFAULT 0,
     meta_title VARCHAR(200) NULL,
     meta_description VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT,
     INDEX idx_product_featured (is_featured),
-    INDEX idx_product_active (is_active)
+    INDEX idx_product_active (is_active),
+    INDEX idx_product_views (view_count)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 7. Product Images Table
@@ -408,24 +410,24 @@ CREATE TABLE audit_logs (
 
 export const IONOS_SEED_DATA = `-- ==============================================================================
 -- INITIAL SEED DATA FOR ZAUQ-E-SEHAT (IONOS SHARED HOSTING)
--- Default Admin: admin@zauqesehat.pk / Admin@Zauq2026!
+-- Default Admin: eirvanfoods@gmail.com / Admin@Zauq2026!
 -- ==============================================================================
 
 -- Admin User (Password is hashed with PHP password_hash PASSWORD_BCRYPT)
 INSERT INTO admin_users (name, email, password_hash, role)
-VALUES ('Store Administrator', 'admin@zauqesehat.pk', '$2y$10$wE47k4a0d9k7n1Jz7yQGbe7nKxH6t4O5P1oJ4gS0aL.kHqF0K9.b2', 'super_admin');
+VALUES ('Store Administrator', 'eirvanfoods@gmail.com', '$2y$10$wE47k4a0d9k7n1Jz7yQGbe7nKxH6t4O5P1oJ4gS0aL.kHqF0K9.b2', 'super_admin');
 
 -- Store Categories
 INSERT INTO categories (name, name_urdu, slug, description, display_order) VALUES
-('Mixed Dry Fruits', 'مکس ڈرائی فروٹس', 'mixed-dry-fruits', 'Carefully balanced superfood blends of nuts, seeds and fruits for daily vigor.', 1),
-('Premium Nuts', 'پریمیم خشک میوہ جات', 'premium-nuts', 'Single-origin hand-cracked Kashmiri almonds, Hunza walnuts, and jumbo cashews.', 2),
-('Dry Fruit Powders', 'ڈرائی فروٹ پاؤڈرز و پنجیری', 'dry-fruit-powders', 'Nutrient-rich stone-ground powders for infants, mothers, and elderly recovery.', 3),
-('Dates & Raisins', 'کھجوریں اور کشمش', 'dates-and-raisins', 'Sacred Madinah Ajwa, jumbo Medjool, and sundried Kandahari long raisins.', 4),
-('Luxury Gift Boxes', 'شاہی تحفہ بکس', 'luxury-gift-boxes', 'Handcrafted pinewood and emerald velvet gift hampers for weddings and Eid.', 5);
+('Mixed Dry Fruits', NULL, 'mixed-dry-fruits', 'Carefully balanced superfood blends of nuts, seeds and fruits for daily vigor.', 1),
+('Premium Nuts', NULL, 'premium-nuts', 'Single-origin hand-cracked Kashmiri almonds, Hunza walnuts, and jumbo cashews.', 2),
+('Dry Fruit Powders', NULL, 'dry-fruit-powders', 'Nutrient-rich stone-ground powders for infants, mothers, and elderly recovery.', 3),
+('Dates & Raisins', NULL, 'dates-and-raisins', 'Sacred Madinah Ajwa, jumbo Medjool, and sundried Kandahari long raisins.', 4),
+('Luxury Gift Boxes', NULL, 'luxury-gift-boxes', 'Handcrafted pinewood and emerald velvet gift hampers for weddings and Eid.', 5);
 
 -- Core Settings
 INSERT INTO settings (setting_key, setting_value, description) VALUES
-('store_name', 'Zauq-e-Sehat (ذوقِ صحت)', 'Official store brand name'),
+('store_name', 'Eirvan Foods', 'Official store brand name'),
 ('contact_phone', '+92 317 6369458', 'Customer support telephone line'),
 ('whatsapp_number', '+92 317 6369458', 'WhatsApp inquiry channel'),
 ('currency_code', 'PKR', 'Base store currency'),

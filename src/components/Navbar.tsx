@@ -12,7 +12,9 @@ import {
   Gift,
   BookOpen,
   ArrowRight,
+  Sparkles,
 } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { PWAInstallButton } from './PWAInstallButton';
 
 
@@ -22,19 +24,24 @@ export const Navbar: React.FC = () => {
     wishlist,
     products,
     settings,
-    activeView,
-    setActiveView,
-    selectedCategory,
-    setSelectedCategory,
     setSelectedProduct,
     setIsCartOpen,
   } = useStore();
 
+  const navigate = useNavigate();
+  const location = useLocation();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const cartItemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+
+  const handleNavClick = (path: string) => {
+    navigate(path);
+    setMobileMenuOpen(false);
+    setSearchOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Search filtered suggestions
   const searchResults = searchInput.trim()
@@ -43,19 +50,10 @@ export const Navbar: React.FC = () => {
           (p) =>
             p.name.toLowerCase().includes(searchInput.toLowerCase()) ||
             p.shortDescription.toLowerCase().includes(searchInput.toLowerCase()) ||
-            p.categoryLabel.toLowerCase().includes(searchInput.toLowerCase()) ||
-            (p.urduName && p.urduName.includes(searchInput))
+            p.categoryLabel.toLowerCase().includes(searchInput.toLowerCase())
         )
         .slice(0, 5)
     : [];
-
-  const handleNavClick = (view: any, category = 'all') => {
-    setActiveView(view);
-    setSelectedCategory(category);
-    setMobileMenuOpen(false);
-    setSearchOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
 
   return (
     <header className="sticky top-0 z-40 bg-[#FBF9F4]/95 backdrop-blur-md border-b border-[#D8E6F0] transition-colors shadow-2xs w-full max-w-full">
@@ -82,7 +80,7 @@ export const Navbar: React.FC = () => {
                 <span>Concierge: {settings.whatsappNumber}</span>
               </a>
               <button
-                onClick={() => handleNavClick('track')}
+                onClick={() => handleNavClick('/track')}
                 className="hover:text-[#58A838] transition-colors cursor-pointer"
               >
                 Track Consignment
@@ -106,7 +104,7 @@ export const Navbar: React.FC = () => {
 
           {/* Logo & Brand Identity (Zone 1) with Official Eirvan Foods Logo Asset */}
           <div
-            onClick={() => handleNavClick('home')}
+            onClick={() => handleNavClick('/')}
             className="flex items-center space-x-1.5 sm:space-x-2.5 cursor-pointer group shrink-0"
           >
             <div className="h-9 sm:h-12 flex items-center justify-center shrink-0">
@@ -136,9 +134,9 @@ export const Navbar: React.FC = () => {
           {/* Desktop Navigation Links (Zone 2) */}
           <nav className="hidden lg:flex items-center gap-2.5 xl:gap-6 text-xs xl:text-sm font-medium text-[#15222E]">
             <button
-              onClick={() => handleNavClick('home')}
+              onClick={() => handleNavClick('/')}
               className={`hover:text-[#0A3D62] transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                activeView === 'home'
+                location.pathname === '/'
                   ? 'text-[#0A3D62] font-bold underline underline-offset-8 decoration-[#4E9B36] decoration-2'
                   : ''
               }`}
@@ -146,9 +144,9 @@ export const Navbar: React.FC = () => {
               Home
             </button>
             <button
-              onClick={() => handleNavClick('shop', 'all')}
+              onClick={() => handleNavClick('/shop')}
               className={`hover:text-[#0A3D62] transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                activeView === 'shop' && selectedCategory === 'all'
+                location.pathname === '/shop' || (location.pathname.startsWith('/shop/') && !['nuts', 'powders'].some(p => location.pathname.includes(p)))
                   ? 'text-[#0A3D62] font-bold underline underline-offset-8 decoration-[#4E9B36] decoration-2'
                   : ''
               }`}
@@ -156,9 +154,9 @@ export const Navbar: React.FC = () => {
               Shop
             </button>
             <button
-              onClick={() => handleNavClick('shop', 'nuts')}
+              onClick={() => handleNavClick('/shop/nuts')}
               className={`hover:text-[#0A3D62] transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                activeView === 'shop' && selectedCategory === 'nuts'
+                location.pathname === '/shop/nuts'
                   ? 'text-[#0A3D62] font-bold underline underline-offset-8 decoration-[#4E9B36] decoration-2'
                   : ''
               }`}
@@ -166,9 +164,9 @@ export const Navbar: React.FC = () => {
               Dry Fruits
             </button>
             <button
-              onClick={() => handleNavClick('shop', 'powders')}
+              onClick={() => handleNavClick('/shop/powders')}
               className={`hover:text-[#0A3D62] transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                activeView === 'shop' && selectedCategory === 'powders'
+                location.pathname === '/shop/powders'
                   ? 'text-[#0A3D62] font-bold underline underline-offset-8 decoration-[#4E9B36] decoration-2'
                   : ''
               }`}
@@ -176,9 +174,9 @@ export const Navbar: React.FC = () => {
               Dry Fruit Powders
             </button>
             <button
-              onClick={() => handleNavClick('gift-builder')}
+              onClick={() => handleNavClick('/gift-builder')}
               className={`hover:text-[#0A3D62] transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                activeView === 'gift-builder'
+                location.pathname === '/gift-builder'
                   ? 'text-[#0A3D62] font-bold underline underline-offset-8 decoration-[#4E9B36] decoration-2'
                   : ''
               }`}
@@ -186,9 +184,19 @@ export const Navbar: React.FC = () => {
               Gift Collections
             </button>
             <button
-              onClick={() => handleNavClick('blog')}
+              onClick={() => handleNavClick('/select-ingredients')}
+              className={`hover:text-[#0A3D62] transition-colors cursor-pointer whitespace-nowrap shrink-0 text-[#344B36] font-semibold ${
+                location.pathname === '/select-ingredients' || location.pathname === '/custom-mix'
+                  ? 'text-[#0A3D62] font-bold underline underline-offset-8 decoration-[#4E9B36] decoration-2'
+                  : ''
+              }`}
+            >
+              Select Ingredients
+            </button>
+            <button
+              onClick={() => handleNavClick('/blog')}
               className={`hover:text-[#0A3D62] transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                activeView === 'blog'
+                location.pathname === '/blog'
                   ? 'text-[#0A3D62] font-bold underline underline-offset-8 decoration-[#4E9B36] decoration-2'
                   : ''
               }`}
@@ -232,9 +240,7 @@ export const Navbar: React.FC = () => {
                         <div
                           key={item.id}
                           onClick={() => {
-                            setSelectedProduct(item);
-                            setSearchOpen(false);
-                            setSearchInput('');
+                            handleNavClick(`/product/${item.slug}`);
                           }}
                           className="flex items-center space-x-3 p-2 hover:bg-[#F7F4EC] rounded-xl cursor-pointer transition-colors"
                         >
@@ -265,33 +271,6 @@ export const Navbar: React.FC = () => {
               )}
             </div>
 
-            {/* Wishlist */}
-            <button
-              onClick={() => handleNavClick('shop')}
-              className="relative p-2 text-[#15222E] hover:text-[#0A3D62] hover:bg-[#EEF5FA] rounded-full transition-colors cursor-pointer"
-              title="Wishlist"
-              aria-label="Wishlist"
-            >
-              <Heart className="w-5 h-5" />
-              {wishlist.length > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-[#C6842D] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                  {wishlist.length}
-                </span>
-              )}
-            </button>
-
-            {/* Cart Trigger */}
-            <button
-              onClick={() => setIsCartOpen(true)}
-              className="relative flex items-center space-x-2 bg-white border border-[#0A3D62]/30 hover:border-[#0A3D62] text-[#0A3D62] px-3.5 py-1.5 rounded-full shadow-2xs transition-all cursor-pointer"
-              aria-label="Shopping Cart"
-            >
-              <ShoppingBag className="w-4 h-4 text-[#0A3D62]" />
-              <span className="text-xs font-bold bg-[#4E9B36] text-white w-5 h-5 rounded-full flex items-center justify-center">
-                {cartItemCount}
-              </span>
-            </button>
-
             {/* PWA Install Button */}
             <div className="hidden sm:block">
               <PWAInstallButton />
@@ -299,9 +278,9 @@ export const Navbar: React.FC = () => {
 
             {/* Admin Switcher */}
             <button
-              onClick={() => handleNavClick('admin')}
+              onClick={() => handleNavClick('/admin')}
               className={`p-2 rounded-full border transition-all cursor-pointer ${
-                activeView === 'admin'
+                location.pathname === '/admin'
                   ? 'bg-[#0A3D62] text-[#4E9B36] border-[#0A3D62]'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-[#0A3D62] hover:text-[#0A3D62]'
               }`}
@@ -319,37 +298,37 @@ export const Navbar: React.FC = () => {
         <div className="md:hidden bg-[#FBF9F4] border-b border-[#0A3D62]/10 px-4 pt-2 pb-6 space-y-3">
           <div className="grid grid-cols-2 gap-2 pb-2">
             <button
-              onClick={() => handleNavClick('home')}
+              onClick={() => handleNavClick('/')}
               className="text-left px-3 py-2 text-sm font-semibold text-[#0A3D62] hover:bg-[#EEF5FA] rounded-xl"
             >
               Home
             </button>
             <button
-              onClick={() => handleNavClick('shop', 'all')}
+              onClick={() => handleNavClick('/shop')}
               className="text-left px-3 py-2 text-sm font-semibold text-[#0A3D62] hover:bg-[#EEF5FA] rounded-xl"
             >
               All Harvests
             </button>
             <button
-              onClick={() => handleNavClick('shop', 'mixed')}
+              onClick={() => handleNavClick('/shop/mixed')}
               className="text-left px-3 py-2 text-sm text-[#15222E] hover:bg-[#EEF5FA] rounded-xl"
             >
               Mixed Fruits
             </button>
             <button
-              onClick={() => handleNavClick('shop', 'nuts')}
+              onClick={() => handleNavClick('/shop/nuts')}
               className="text-left px-3 py-2 text-sm text-[#15222E] hover:bg-[#EEF5FA] rounded-xl"
             >
               Single-Origin Nuts
             </button>
             <button
-              onClick={() => handleNavClick('shop', 'powders')}
+              onClick={() => handleNavClick('/shop/powders')}
               className="text-left px-3 py-2 text-sm text-[#15222E] hover:bg-[#EEF5FA] rounded-xl"
             >
               Fruit Powders
             </button>
             <button
-              onClick={() => handleNavClick('shop', 'dates-raisins')}
+              onClick={() => handleNavClick('/shop/dates-raisins')}
               className="text-left px-3 py-2 text-sm text-[#15222E] hover:bg-[#EEF5FA] rounded-xl"
             >
               Dates & Raisins
@@ -358,7 +337,7 @@ export const Navbar: React.FC = () => {
 
           <div className="pt-2 border-t border-[#0A3D62]/10 space-y-2">
             <button
-              onClick={() => handleNavClick('gift-builder')}
+              onClick={() => handleNavClick('/gift-builder')}
               className="w-full flex items-center justify-between px-3 py-2.5 bg-[#4E9B36]/10 text-[#0A3D62] font-semibold text-sm rounded-xl"
             >
               <span className="flex items-center space-x-2">
@@ -369,7 +348,18 @@ export const Navbar: React.FC = () => {
             </button>
 
             <button
-              onClick={() => handleNavClick('track')}
+              onClick={() => handleNavClick('/select-ingredients')}
+              className="w-full flex items-center justify-between px-3 py-2.5 bg-[#344B36] text-white font-semibold text-sm rounded-xl"
+            >
+              <span className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-[#B69A62]" />
+                <span>Select Your Own Ingredients</span>
+              </span>
+              <ArrowRight className="w-4 h-4 text-white" />
+            </button>
+
+            <button
+              onClick={() => handleNavClick('/track')}
               className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-[#15222E] hover:bg-[#EEF5FA] rounded-xl"
             >
               <Package className="w-4 h-4 text-gray-500" />
@@ -377,7 +367,7 @@ export const Navbar: React.FC = () => {
             </button>
 
             <button
-              onClick={() => handleNavClick('blog')}
+              onClick={() => handleNavClick('/blog')}
               className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-[#15222E] hover:bg-[#EEF5FA] rounded-xl"
             >
               <BookOpen className="w-4 h-4 text-gray-500" />

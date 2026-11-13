@@ -2,13 +2,14 @@ import React from 'react';
 import { useStore } from '../context/StoreContext';
 import { ArrowRight } from 'lucide-react';
 
+import { useNavigate } from 'react-router-dom';
+
 export const CategoryGrid: React.FC = () => {
-  const { setActiveView, setSelectedCategory } = useStore();
+  const navigate = useNavigate();
 
   const handleCategoryClick = (catId: string) => {
-    setSelectedCategory(catId);
-    setActiveView('shop');
-    window.scrollTo({ top: 350, behavior: 'smooth' });
+    navigate(`/shop/${catId}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const collections = [
@@ -63,18 +64,12 @@ export const CategoryGrid: React.FC = () => {
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-10 pb-4 border-b border-[#E7DDCA] gap-4">
         <div>
-          <span className="text-xs uppercase tracking-[0.25em] font-semibold text-[#A5AD91] block mb-1">
-            Curated Pantry
-          </span>
           <h2 className="font-serif text-3xl sm:text-4xl text-[#302A25]">
             Shop by Collection
           </h2>
         </div>
         <button
-          onClick={() => {
-            setSelectedCategory('all');
-            setActiveView('shop');
-          }}
+          onClick={() => navigate('/shop/all')}
           className="text-xs uppercase tracking-widest font-bold text-[#344B36] hover:text-[#B69A62] flex items-center space-x-1.5 transition-colors cursor-pointer"
         >
           <span>View All Selections</span>

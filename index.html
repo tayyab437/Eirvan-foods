@@ -3,6 +3,78 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function() {
+        // Intercept console.error to silence Vite WebSocket logs
+        var origConsoleError = console.error;
+        console.error = function() {
+          var args = Array.prototype.slice.call(arguments);
+          var msg = args.map(function(a) { return String(a && a.message ? a.message : (a && a.stack ? a.stack : a)); }).join(' ');
+          if (msg.indexOf('WebSocket closed without opened') !== -1 || (msg.indexOf('[vite]') !== -1 && msg.indexOf('WebSocket') !== -1)) {
+            return;
+          }
+          return origConsoleError.apply(console, arguments);
+        };
+
+        // Stub/guard WebSocket constructor for Vite HMR connections
+        if (typeof window !== 'undefined' && window.WebSocket) {
+          var RealWebSocket = window.WebSocket;
+          window.WebSocket = function(url, protocols) {
+            try {
+              // Check if connection is from Vite client
+              var stack = new Error().stack || '';
+              if (stack.indexOf('@vite/client') !== -1 || (typeof url === 'string' && (url.indexOf('ais-dev') !== -1 || url.indexOf('ais-pre') !== -1))) {
+                // Return a harmless dummy event emitter
+                var dummy = {
+                  binaryType: 'blob',
+                  bufferedAmount: 0,
+                  extensions: '',
+                  protocol: '',
+                  readyState: 3, // CLOSED
+                  url: url,
+                  onopen: null,
+                  onmessage: null,
+                  onerror: null,
+                  onclose: null,
+                  close: function() {},
+                  send: function() {},
+                  addEventListener: function() {},
+                  removeEventListener: function() {},
+                  dispatchEvent: function() { return false; }
+                };
+                return dummy;
+              }
+            } catch(e) {}
+            return new (Function.prototype.bind.apply(RealWebSocket, [null].concat(Array.prototype.slice.call(arguments))));
+          };
+          window.WebSocket.prototype = RealWebSocket.prototype;
+          window.WebSocket.CONNECTING = RealWebSocket.CONNECTING;
+          window.WebSocket.OPEN = RealWebSocket.OPEN;
+          window.WebSocket.CLOSING = RealWebSocket.CLOSING;
+          window.WebSocket.CLOSED = RealWebSocket.CLOSED;
+        }
+
+        window.addEventListener('unhandledrejection', function (e) {
+          if (e && e.reason && (
+            (e.reason.message && e.reason.message.includes('WebSocket')) ||
+            (e.reason.stack && e.reason.stack.includes('@vite/client'))
+          )) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }, true);
+        window.addEventListener('error', function (e) {
+          if (e && (
+            (e.message && e.message.includes('WebSocket')) ||
+            (e.filename && e.filename.includes('@vite/client'))
+          )) {
+            e.preventDefault();
+            e.stopPropagation();
+            return true;
+          }
+        }, true);
+      })();
+    </script>
     <title>Eirvan Foods® - Natural Goodness • Better Tomorrow</title>
     <meta name="description" content="Eirvan Foods - Premium single-origin dry fruits, wholesome nuts, stone-ground powders, and artisan gift hampers. Natural Goodness • Better Tomorrow." />
     <meta property="og:title" content="Eirvan Foods® - Natural Goodness • Better Tomorrow" />
@@ -10,6 +82,8 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="help" href="/llms.txt" type="text/markdown" title="LLM Summary" />
+    <link rel="ard" href="/.well-known/ard.json" type="application/json" title="ARD Manifest" />
+    <link rel="canonical" href="https://eirvan.netlify.app" />
 
     <!-- PWA and Mobile Meta Tags -->
     <meta name="theme-color" content="#0A3D62" />
@@ -55,7 +129,7 @@
                 </span>
               </div>
               <div class="hidden md:flex items-center space-x-6 text-xs text-[#EDF4F9]">
-                <span>Concierge: +92 317 6369458</span>
+                <a href="tel:+923176369458" class="hover:underline transition-colors">Concierge: +92 317 6369458</a>
               </div>
             </div>
           </div>

@@ -3,12 +3,15 @@ import { Product, ProductVariant } from '../types';
 import { useStore } from '../context/StoreContext';
 import { Heart, Star, ShoppingBag, Eye, Check } from 'lucide-react';
 
+import { useNavigate } from 'react-router-dom';
+
 interface ProductCardProps {
   product: Product;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const { addToCart, wishlist, toggleWishlist, setSelectedProduct } = useStore();
+  const { addToCart, wishlist, toggleWishlist } = useStore();
+  const navigate = useNavigate();
 
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant>(
     product.variants[0]
@@ -32,7 +35,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
   return (
     <div
-      onClick={() => setSelectedProduct(product)}
+      onClick={() => navigate(`/product/${product.slug}`)}
       className="group bg-white rounded-3xl border border-[#E7DDCA] overflow-hidden hover:shadow-xl hover:border-[#344B36]/30 transition-all duration-300 flex flex-col justify-between cursor-pointer relative"
     >
       {/* Top Image Container (65% of card visual) */}

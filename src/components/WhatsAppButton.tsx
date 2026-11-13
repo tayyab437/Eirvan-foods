@@ -74,7 +74,16 @@ export const WhatsAppButton: React.FC = () => {
 
           <div className="p-2.5 bg-[#FBF9F4] border-t border-[#0A3D62]/10 text-center">
             <span className="text-[10px] text-[#15222E]/70 font-mono">
-              Helpline: {settings.whatsappNumber} (Eirvan Foods)
+              Helpline:{' '}
+              <a
+                href={`https://wa.me/${cleanNumber}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[#4E9B36] hover:underline font-semibold"
+              >
+                {settings.whatsappNumber}
+              </a>
+              {' '}(Eirvan Foods)
             </span>
           </div>
         </div>

@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+import { useNavigate } from 'react-router-dom';
+
 export const CheckoutView: React.FC = () => {
   const {
     cart,
@@ -22,9 +24,10 @@ export const CheckoutView: React.FC = () => {
     couponDiscount,
     cartTotal,
     placeOrder,
-    setActiveView,
     settings,
   } = useStore();
+
+  const navigate = useNavigate();
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('03');
@@ -48,7 +51,7 @@ export const CheckoutView: React.FC = () => {
           Please add items to your cart before proceeding to checkout.
         </p>
         <button
-          onClick={() => setActiveView('shop')}
+          onClick={() => navigate('/shop')}
           className="px-6 py-2.5 bg-[#344B36] text-[#F7F4EC] text-xs uppercase tracking-wider font-bold rounded-xl hover:bg-[#233425] cursor-pointer"
         >
           Explore Mountain Harvests
@@ -130,7 +133,7 @@ export const CheckoutView: React.FC = () => {
         origin: { y: 0.6 },
       });
 
-      setActiveView('track');
+      navigate('/track');
     } catch (err: any) {
       console.error(err);
       setErrorMessage(
@@ -144,7 +147,7 @@ export const CheckoutView: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       <button
-        onClick={() => setActiveView('shop')}
+        onClick={() => navigate('/shop')}
         className="inline-flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-[#344B36] hover:underline mb-6 cursor-pointer"
       >
         <ArrowLeft className="w-4 h-4" />
@@ -229,7 +232,7 @@ export const CheckoutView: React.FC = () => {
                 type="email"
                 value={customerEmail}
                 onChange={(e) => setCustomerEmail(e.target.value)}
-                placeholder="name@gmail.com"
+                placeholder="eirvanfoods@gmail.com"
                 className="w-full text-xs p-3 rounded-xl border border-[#E7DDCA] bg-[#F7F4EC] focus:outline-hidden focus:border-[#344B36]"
               />
             </div>

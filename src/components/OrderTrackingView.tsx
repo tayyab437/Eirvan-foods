@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { Order, OrderStatus } from '../types';
 import {
@@ -9,6 +10,7 @@ import {
   Printer,
   ShieldCheck,
   AlertCircle,
+  ShoppingBag,
 } from 'lucide-react';
 
 const STATUS_STEPS: OrderStatus[] = [
@@ -21,7 +23,8 @@ const STATUS_STEPS: OrderStatus[] = [
 ];
 
 export const OrderTrackingView: React.FC = () => {
-  const { orders, lastPlacedOrder, settings, setActiveView } = useStore();
+  const { orders, lastPlacedOrder, settings } = useStore();
+  const navigate = useNavigate();
 
   const [searchQuery, setSearchQuery] = useState(
     lastPlacedOrder ? lastPlacedOrder.orderNumber : ''
@@ -125,46 +128,55 @@ export const OrderTrackingView: React.FC = () => {
               </div>
             </div>
 
-            {/* Stepper visual */}
-            <div className="relative pt-4 pb-2">
-              <div className="hidden sm:block absolute top-1/2 left-0 w-full h-[1px] bg-[#E7DDCA] -translate-y-1/2 z-0" />
-              <div
-                className="hidden sm:block absolute top-1/2 left-0 h-[2px] bg-[#344B36] -translate-y-1/2 z-0 transition-all duration-500"
-                style={{
-                  width: `${(Math.max(0, currentStepIndex) / (STATUS_STEPS.length - 1)) * 100}%`,
-                }}
-              />
+            {/* Visual Timeline Stepper */}
+            <div className="py-8 relative">
+              <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-[#244C37] to-[#B69A62] transition-all duration-1000 ease-out"
+                  style={{ width: `${(Math.max(0, currentStepIndex) / (STATUS_STEPS.length - 1)) * 100}%` }}
+                ></div>
+              </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 relative z-10">
-                {STATUS_STEPS.map((step, idx) => {
-                  const isCompleted = idx <= currentStepIndex;
-                  const isCurrent = idx === currentStepIndex;
+              <div className="relative flex justify-between">
+                {[
+                  { label: 'Placed', icon: ShoppingBag, status: 'Pending' },
+                  { label: 'QA Check', icon: ShieldCheck, status: 'Processing' },
+                  { label: 'Sealed', icon: Package, status: 'Packed' },
+                  { label: 'Dispatched', icon: Truck, status: 'Shipped' },
+                  { label: 'Delivered', icon: CheckCircle2, status: 'Delivered' },
+                ].map((stage, idx) => {
+                  const statusIdx = STATUS_STEPS.indexOf(stage.status as OrderStatus);
+                  const isCompleted = currentStepIndex >= statusIdx;
+                  const isCurrent = searchedOrder.orderStatus === stage.status;
+
                   return (
-                    <div
-                      key={step}
-                      className="flex sm:flex-col items-center sm:text-center space-x-2 sm:space-x-0"
-                    >
-                      <div
-                        className={`w-7 h-7 flex items-center justify-center text-xs font-mono transition-all ${
-                          isCompleted
-                            ? 'bg-[#344B36] text-[#F7F4EC]'
-                            : 'bg-white border border-[#E7DDCA] text-[#302A25]/40'
-                        } ${isCurrent ? 'ring-2 ring-[#B69A62]' : ''}`}
+                    <div key={stage.label} className="flex flex-col items-center group">
+                      <div 
+                        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 z-10 ${
+                          isCompleted 
+                            ? 'bg-[#244C37] text-[#B69A62] shadow-lg shadow-[#244C37]/20 scale-110' 
+                            : 'bg-white text-gray-300 border-2 border-gray-100'
+                        } ${isCurrent ? 'ring-4 ring-[#B69A62]/30' : ''}`}
                       >
-                        {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
+                        <stage.icon className={`w-6 h-6 ${isCurrent ? 'animate-bounce-subtle' : ''}`} />
                       </div>
-                      <span
-                        className={`text-[11px] mt-2 font-mono uppercase tracking-wider ${
-                          isCompleted ? 'text-[#344B36] font-semibold' : 'text-[#302A25]/40'
-                        }`}
-                      >
-                        {step}
-                      </span>
+                      <div className="absolute mt-14 flex flex-col items-center text-center w-24">
+                        <span className={`text-[10px] font-bold uppercase tracking-widest ${isCompleted ? 'text-[#244C37]' : 'text-gray-400'}`}>
+                          {stage.label}
+                        </span>
+                        {isCurrent && (
+                          <span className="text-[9px] bg-[#B69A62]/10 text-[#B69A62] px-2 py-0.5 rounded-full font-bold mt-1 animate-pulse">
+                            ACTIVE
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </div>
+
+            <div className="h-10"></div> {/* Spacer for absolute labels */}
 
             {/* Courier dispatch note */}
             <div className="p-4 bg-[#F7F4EC] border border-[#E7DDCA] flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-3">
@@ -216,7 +228,13 @@ export const OrderTrackingView: React.FC = () => {
                   Eirvan Foods (Pvt) Ltd • Single-Origin Mountain Harvests
                 </p>
                 <p className="text-[11px] text-[#15222E]/50 font-mono mt-0.5">
-                  Gulberg III, Lahore, Pakistan • Helpline: {settings.contactPhone}
+                  Gulberg III, Lahore, Pakistan • Helpline:{' '}
+                  <a
+                    href={`tel:${settings.contactPhone.replace(/[^0-9+]/g, '')}`}
+                    className="text-[#344B36] hover:underline font-semibold"
+                  >
+                    {settings.contactPhone}
+                  </a>
                 </p>
                 <p className="text-[10px] text-[#4E9B36] font-mono font-medium">
                   Registered with Punjab Food Authority (PFA-LHR-2026-921)
@@ -293,7 +311,7 @@ export const OrderTrackingView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E7DDCA]/50 font-sans">
-                  {searchedOrder.items.map((item, idx) => (
+                  {searchedOrder.items.map((item: any, idx: number) => (
                     <tr key={idx} className="py-3">
                       <td className="py-3 font-medium text-[#302A25]">
                         {item.productName}
@@ -350,7 +368,15 @@ export const OrderTrackingView: React.FC = () => {
             {/* Footer notes on receipt */}
             <div className="pt-4 border-t border-[#E7DDCA] flex flex-col sm:flex-row items-center justify-between text-[11px] text-[#302A25]/60 space-y-2 sm:space-y-0">
               <p className="font-light">
-                Thank you for patronizing authentic Pakistani harvests. Support helpline: {settings.whatsappNumber}
+                Thank you for patronizing authentic Pakistani harvests. Support helpline:{' '}
+                <a
+                  href={`https://wa.me/${settings.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-[#344B36] hover:underline"
+                >
+                  {settings.whatsappNumber}
+                </a>
               </p>
               <div className="flex items-center space-x-1.5 text-[#B69A62]">
                 <ShieldCheck className="w-4 h-4" />
@@ -369,7 +395,7 @@ export const OrderTrackingView: React.FC = () => {
             Enter your order reference above or explore our seasonal harvests to place an order.
           </p>
           <button
-            onClick={() => setActiveView('shop')}
+            onClick={() => navigate('/shop')}
             className="px-6 py-2.5 bg-[#344B36] text-[#F7F4EC] text-xs font-mono uppercase tracking-wider hover:bg-[#2C3E2E] cursor-pointer"
           >
             Explore The Pantry

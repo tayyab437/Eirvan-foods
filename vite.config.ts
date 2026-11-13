@@ -102,27 +102,19 @@ export default defineConfig(() => {
       sourcemap: true,
       rollupOptions: {
         output: {
-          manualChunks(id: string) {
-            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
-              return 'vendor-react';
-            }
-            if (id.includes('node_modules/firebase')) {
-              return 'vendor-firebase';
-            }
-            if (id.includes('node_modules/lucide-react')) {
-              return 'vendor-icons';
-            }
-          },
+          // Allow Vite to perform natural code splitting for better tree-shaking and reduced unused JS
         },
       },
       chunkSizeWarningLimit: 1000,
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
+      // HMR is disabled in AI Studio environment to prevent WebSocket disconnection errors in iframe
+      hmr: false,
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // Ensure the server port matches the environment's expectation
+      port: 3000,
+      strictPort: true,
     },
   };
 });

@@ -1,5 +1,4 @@
-import React from 'react';
-import { useStore } from '../context/StoreContext';
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   ShieldCheck,
@@ -10,16 +9,15 @@ import {
 } from 'lucide-react';
 
 export const HeroSection: React.FC = () => {
-  const { setActiveView, setSelectedCategory } = useStore();
+  const navigate = useNavigate();
 
   const handleShopNow = () => {
-    setActiveView('shop');
-    setSelectedCategory('all');
+    navigate('/shop');
     window.scrollTo({ top: 400, behavior: 'smooth' });
   };
 
   const handleStory = () => {
-    setActiveView('blog');
+    navigate('/blog');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -30,13 +28,7 @@ export const HeroSection: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
           {/* Left Editorial Text (6 cols) */}
           <div className="lg:col-span-6 space-y-6">
-            <div className="space-y-3">
-              <div className="inline-flex items-center space-x-2 px-3 py-1 bg-[#4E9B36]/10 border border-[#4E9B36]/30 rounded-full">
-                <Sparkles className="w-3.5 h-3.5 text-[#4E9B36]" />
-                <span className="text-xs uppercase tracking-[0.2em] font-bold text-[#0A3D62]">
-                  EIRVAN FOODS · NATURAL GOODNESS
-                </span>
-              </div>
+            <div>
               <h1
                 className="text-4xl sm:text-5xl lg:text-6xl text-[#0A3D62] tracking-tight leading-[1.08] font-bold"
                 style={{ fontFamily: 'Cinzel, "Cormorant Garamond", Georgia, serif' }}
@@ -44,10 +36,6 @@ export const HeroSection: React.FC = () => {
                 Nature’s Finest, Thoughtfully Gathered.
               </h1>
             </div>
-
-            <p className="text-sm sm:text-base text-[#15222E]/80 leading-relaxed max-w-xl font-sans font-normal">
-              Discover exquisitely selected dry fruits, cold stone-ground superfoods, and artisanal nutrition blends by <strong className="text-[#0A3D62]">Eirvan Foods®</strong>. From hand-cracked Kashmiri Mamra almonds to high-mountain Gilgit walnuts and authentic Madinah dates—pure wellness for a better tomorrow.
-            </p>
 
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 pt-2">
@@ -65,12 +53,6 @@ export const HeroSection: React.FC = () => {
               >
                 <span>Discover Our Story</span>
               </button>
-            </div>
-
-            {/* Subtle Origin Note */}
-            <div className="pt-4 flex items-center space-x-2 text-xs text-[#15222E]/70">
-              <span className="w-2 h-2 rounded-full bg-[#4E9B36]" />
-              <span className="font-serif italic">Ethically gathered from Kashmir, Gilgit-Baltistan, Balochistan &amp; Al-Madinah</span>
             </div>
           </div>
 

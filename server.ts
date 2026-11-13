@@ -41,6 +41,13 @@ app.get('/robots.txt', (_req, res) => {
   res.sendFile(path.resolve(__dirname, 'public', 'robots.txt'));
 });
 
+// Agentic Resource Discovery (ARD) endpoint
+app.get('/.well-known/ard.json', (_req, res) => {
+  res.type('application/json; charset=utf-8');
+  res.sendFile(path.resolve(__dirname, 'public', '.well-known', 'ard.json'));
+});
+
+
 
 // Initialize GoogleGenAI SDK
 const getAiClient = () => {
@@ -229,10 +236,16 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
 // Setup Vite or static serving
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
+  const httpServer = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Eirvan Foods platform running at http://0.0.0.0:${PORT}`);
+  });
 
   if (!isProd) {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -254,10 +267,6 @@ async function startServer() {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Eirvan Foods platform running at http://0.0.0.0:${PORT}`);
-  });
 }
 
 startServer();

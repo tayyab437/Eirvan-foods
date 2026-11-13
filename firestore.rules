@@ -26,7 +26,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == 'ac.repair.in.dubai3@gmail.com' ||
+        (request.auth.token.email == 'ac.repair.in.dubai3@gmail.com' && request.auth.token.email_verified == true) ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
@@ -34,13 +34,11 @@ service cloud.firestore {
     // Entity Validations
     function isValidProduct(data) {
       return data.id is string &&
-             data.name is string && data.name.size() <= 150 &&
-             data.slug is string && data.slug.size() <= 100 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.slug is string && data.slug.size() <= 150 &&
              data.category is string &&
-             data.origin is string && data.origin.size() <= 150 &&
-             data.imageUrl is string && data.imageUrl.size() <= 500 &&
              data.variants is list && data.variants.size() > 0 &&
-             data.variants.size() <= 20;
+             data.variants.size() <= 30;
     }
 
     function isValidOrder(data) {
@@ -77,6 +75,38 @@ service cloud.firestore {
              data.whatsappNumber is string && data.whatsappNumber.size() <= 30 &&
              data.freeShippingThreshold is number &&
              data.standardShippingRate is number;
+    }
+
+    function isValidWholesaleInquiry(data) {
+      return data.keys().hasAll([
+               'id', 'createdAt', 'companyName', 'contactName', 'phone', 'email',
+               'inquiryType', 'estimatedQuantity', 'message', 'status'
+             ]) &&
+             data.keys().hasOnly([
+               'id', 'createdAt', 'companyName', 'contactName', 'phone', 'email',
+               'inquiryType', 'estimatedQuantity', 'eventDate', 'message', 'status'
+             ]) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             data.companyName is string && data.companyName.size() >= 1 && data.companyName.size() <= 100 &&
+             data.contactName is string && data.contactName.size() >= 1 && data.contactName.size() <= 100 &&
+             data.phone is string && data.phone.size() >= 3 && data.phone.size() <= 30 &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 100 &&
+             data.inquiryType in ['Corporate Gifting', 'Wholesale Purchase', 'Wedding Favors', 'Other'] &&
+             data.estimatedQuantity is string && data.estimatedQuantity.size() >= 1 && data.estimatedQuantity.size() <= 100 &&
+             (!('eventDate' in data) || (data.eventDate is string && data.eventDate.size() <= 32)) &&
+             data.message is string && data.message.size() <= 2000 &&
+             data.status in ['New', 'Contacted', 'Quoted', 'Converted', 'Closed'];
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['id', 'name']) &&
+             data.keys().hasOnly(['id', 'name', 'image', 'description', 'isSystem']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             (!('image' in data) || (data.image is string && data.image.size() <= 500)) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 300)) &&
+             (!('isSystem' in data) || data.isSystem is bool);
     }
 
     // 1. Products Collection (Public browse, admin write)
@@ -122,6 +152,25 @@ service cloud.firestore {
       allow create: if isValidId(settingId) && (isAdmin() || isValidStoreSettings(incoming()));
       allow update: if isValidId(settingId) && (isAdmin() || isValidStoreSettings(incoming()));
       allow delete: if isValidId(settingId) && isAdmin();
+    }
+
+    // 6. Wholesale Inquiries Collection (Public create with status 'New', Admin read/update/delete)
+    match /wholesale_inquiries/{inquiryId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidId(inquiryId) && isValidWholesaleInquiry(incoming()) && incoming().status == 'New';
+      allow update: if isValidId(inquiryId) && isAdmin() && isValidWholesaleInquiry(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().id == existing().id;
+      allow delete: if isValidId(inquiryId) && isAdmin();
+    }
+
+    // 7. Categories Collection (Public browse, admin write)
+    match /categories/{categoryId} {
+      allow get, list: if true;
+      allow create: if isValidId(categoryId) && isAdmin() && isValidCategory(incoming());
+      allow update: if isValidId(categoryId) && isAdmin() && isValidCategory(incoming());
+      allow delete: if isValidId(categoryId) && isAdmin();
     }
   }
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
+import { useNavigate } from 'react-router-dom';
 import {
   Phone,
   Mail,
@@ -13,7 +14,8 @@ import {
 } from 'lucide-react';
 
 export const Footer: React.FC = () => {
-  const { settings, setActiveView, setSelectedCategory } = useStore();
+  const { settings } = useStore();
+  const navigate = useNavigate();
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
 
@@ -25,9 +27,8 @@ export const Footer: React.FC = () => {
     }
   };
 
-  const navigateTo = (view: any, cat = 'all') => {
-    setActiveView(view);
-    setSelectedCategory(cat);
+  const navigateTo = (path: string) => {
+    navigate(path);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -125,11 +126,33 @@ export const Footer: React.FC = () => {
               </div>
               <div className="flex items-center space-x-2.5">
                 <Phone className="w-4 h-4 text-[#4E9B36] shrink-0" />
-                <span className="text-xs text-[#EEF5FA]">Helpline: {settings.contactPhone} • WhatsApp: {settings.whatsappNumber}</span>
+                <span className="text-xs text-[#EEF5FA]">
+                  Helpline:{' '}
+                  <a
+                    href={`tel:${settings.contactPhone.replace(/[^0-9+]/g, '')}`}
+                    className="hover:text-white hover:underline transition-colors font-medium"
+                  >
+                    {settings.contactPhone}
+                  </a>
+                  {' '}• WhatsApp:{' '}
+                  <a
+                    href={`https://wa.me/${settings.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-[#4E9B36] hover:underline transition-colors font-medium"
+                  >
+                    {settings.whatsappNumber}
+                  </a>
+                </span>
               </div>
               <div className="flex items-center space-x-2.5">
                 <Mail className="w-4 h-4 text-[#4E9B36] shrink-0" />
-                <span className="text-xs text-[#EEF5FA]">{settings.contactEmail}</span>
+                <a
+                  href={`mailto:${settings.contactEmail || 'eirvanfoods@gmail.com'}`}
+                  className="text-xs text-[#EEF5FA] hover:text-white hover:underline transition-colors"
+                >
+                  {settings.contactEmail || 'eirvanfoods@gmail.com'}
+                </a>
               </div>
             </div>
           </div>
@@ -142,7 +165,7 @@ export const Footer: React.FC = () => {
             <ul className="space-y-2.5 text-xs text-[#EEF5FA] tracking-wide">
               <li>
                 <button
-                  onClick={() => navigateTo('shop', 'mixed')}
+                  onClick={() => navigateTo('/shop/mixed')}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
                   Mixed Trail Medleys
@@ -150,7 +173,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => navigateTo('shop', 'nuts')}
+                  onClick={() => navigateTo('/shop/nuts')}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
                   Mamra Almonds & Cashews
@@ -158,7 +181,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => navigateTo('shop', 'powders')}
+                  onClick={() => navigateTo('/shop/powders')}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
                   Stone-Ground Nut Powders
@@ -166,7 +189,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => navigateTo('shop', 'dates-raisins')}
+                  onClick={() => navigateTo('/shop/dates-raisins')}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
                   Ajwa Dates & Golden Raisins
@@ -174,10 +197,18 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => navigateTo('gift-builder')}
+                  onClick={() => navigateTo('/select-ingredients')}
                   className="hover:text-white transition-colors cursor-pointer text-[#4E9B36] font-semibold text-left flex items-center space-x-1"
                 >
                   <Sparkles className="w-3.5 h-3.5 mr-1 text-[#C6842D]" />
+                  <span>Select Your Own Ingredients</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/gift-builder')}
+                  className="hover:text-white transition-colors cursor-pointer text-[#EEF5FA] text-left flex items-center space-x-1"
+                >
                   <span>Artisan Gift Boxes</span>
                 </button>
               </li>
@@ -192,7 +223,7 @@ export const Footer: React.FC = () => {
             <ul className="space-y-2.5 text-xs text-[#EEF5FA] tracking-wide">
               <li>
                 <button
-                  onClick={() => navigateTo('track')}
+                  onClick={() => navigateTo('/track')}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
                   Track Courier Order
@@ -200,7 +231,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => navigateTo('blog')}
+                  onClick={() => navigateTo('/blog')}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
                   The Pantry Journal
@@ -208,7 +239,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => navigateTo('shop')}
+                  onClick={() => navigateTo('/shop')}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
                   Cash on Delivery Protocol
@@ -216,7 +247,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => navigateTo('shop')}
+                  onClick={() => navigateTo('/shop')}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
                   Freshness & Return Guarantee
@@ -224,7 +255,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => navigateTo('admin')}
+                  onClick={() => navigateTo('/admin')}
                   className="text-xs text-[#4E9B36] hover:text-white transition-colors cursor-pointer flex items-center space-x-1"
                 >
                   <span>Operations & Hosting Center</span>
@@ -235,13 +266,6 @@ export const Footer: React.FC = () => {
 
           {/* Newsletter */}
           <div>
-            <h2 className="font-serif text-base tracking-wide text-[#C6842D] mb-4">
-              Seasonal Harvest Alerts
-            </h2>
-            <p className="text-xs text-[#EEF5FA]/80 mb-3.5 leading-relaxed font-light">
-              Receive notifications when fresh seasonal batches arrive—Chilgoza pine nuts, freshly stone-ground panjiri, and bespoke holiday collections.
-            </p>
-
             {newsletterSubscribed ? (
               <div className="bg-[#072B47] p-3.5 border border-[#4E9B36]/40 text-xs text-[#4E9B36] flex items-center space-x-2 rounded-xl">
                 <CheckCircle2 className="w-4 h-4 text-[#4E9B36] shrink-0" />

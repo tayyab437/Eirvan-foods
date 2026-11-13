@@ -1,11 +1,220 @@
-import { Product, StoreSettings, Coupon, CustomerReview, BlogPost } from '../types';
+import { Product, StoreSettings, Coupon, CustomerReview, BlogPost, CategoryItem, ShahiMixBox, ShahiMixIngredient, UnboxingReview } from '../types';
+
+export const INITIAL_UNBOXING_REVIEWS: UnboxingReview[] = [
+  {
+    id: 'ub-1',
+    customerName: 'Fatima & Tariq Qureshi',
+    city: 'Lahore, Punjab',
+    rating: 5,
+    productName: 'Zamarrud Emerald Velvet 6-Partition Chest',
+    unboxingPhoto: '/assets/images/luxury_olive_gift_box_1794054054136.webp',
+    comment: 'The velvet tin finish and single-origin Chilgoza aroma blew us away upon unboxing! Pristine vacuum seal and zero broken nuts.',
+    date: 'Yesterday',
+    verifiedBuyer: true,
+    boxStyle: 'Emerald Velvet Tray',
+  },
+  {
+    id: 'ub-2',
+    customerName: 'Syed Hamza Hashmi',
+    city: 'Islamabad',
+    rating: 5,
+    productName: 'Kashmiri Mamra Almonds (AAA)',
+    unboxingPhoto: 'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=600&q=80',
+    comment: 'Crack test proved 100% natural essential oils. The custom calligraphy card inside was a beautiful touch for our family gift.',
+    date: '3 days ago',
+    verifiedBuyer: true,
+    boxStyle: 'Olive Keepsake Chest',
+  },
+  {
+    id: 'ub-3',
+    customerName: 'Zainab & Dr. Bilal',
+    city: 'Karachi, Sindh',
+    rating: 5,
+    productName: 'Chiniot Handcrafted Pinewood Chest',
+    unboxingPhoto: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80',
+    comment: 'Delivered in Karachi within 36 hours. Solid pinewood construction with brass latch. Exceptional quality dry fruits.',
+    date: '5 days ago',
+    verifiedBuyer: true,
+    boxStyle: 'Pinewood Shahi Box',
+  },
+  {
+    id: 'ub-4',
+    customerName: 'Maryam Sajjad',
+    city: 'Peshawar',
+    rating: 5,
+    productName: 'Shahi Stone-Ground Panjiri Jar',
+    unboxingPhoto: '/assets/images/dry_fruit_powders_culinary_1794054053020.webp',
+    comment: 'Warm cardamom aroma right out of the jar! Tastes pure without heavy sugar fillers. Perfect winter nourishment.',
+    date: '1 week ago',
+    verifiedBuyer: true,
+    boxStyle: 'Glass Amber Jar',
+  },
+];
+
+export const INITIAL_SHAHI_MIX_BOXES: ShahiMixBox[] = [
+  {
+    id: 'box-olive-luxe',
+    name: 'Artisan Olive Keepsake Gift Box',
+    capacity: 4,
+    basePrice: 1950,
+    image: '/assets/images/luxury_olive_gift_box_1794054054136.webp',
+    description: 'Deep olive green rigid matte chest with warm cream typographic label and satin grosgrain ribbon.',
+  },
+  {
+    id: 'box-pine',
+    name: 'Chiniot Handcrafted Pinewood Chest',
+    capacity: 4,
+    basePrice: 1850,
+    image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=480&q=65&fm=webp',
+    description: 'Natural seasoned pinewood with antique brass latch & fitted cradles.',
+  },
+  {
+    id: 'box-velvet',
+    name: 'Zamarrud Emerald Velvet 6-Partition Tray',
+    capacity: 6,
+    basePrice: 2400,
+    image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=480&q=65&fm=webp',
+    description: 'Deep forest green velvet with gold zari border and clear acrylic protective lid.',
+  },
+];
+
+export const INITIAL_SHAHI_MIX_INGREDIENTS: ShahiMixIngredient[] = [
+  {
+    id: 'ing-mamra',
+    name: 'Kashmiri Mamra Almonds (AAA)',
+    image: 'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=400&q=80',
+    inStock: true,
+    portions: [
+      { id: 'mam-10', weight: '10g', weightGrams: 10, price: 90 },
+      { id: 'mam-50', weight: '50g', weightGrams: 50, price: 450 },
+      { id: 'mam-100', weight: '100g', weightGrams: 100, price: 900 },
+      { id: 'mam-250', weight: '250g', weightGrams: 250, price: 2150 },
+      { id: 'mam-500', weight: '500g', weightGrams: 500, price: 4200 },
+      { id: 'mam-1000', weight: '1kg', weightGrams: 1000, price: 8200 },
+    ],
+    nutritionFacts: { calories: 579, protein: 21, fat: 50, carbs: 22 },
+  },
+  {
+    id: 'ing-chilgoza',
+    name: 'Balochistan Roasted Pine Nuts (Chilgoza)',
+    image: 'https://images.unsplash.com/photo-1574545488652-2a97d6b6c387?auto=format&fit=crop&w=400&q=80',
+    inStock: true,
+    portions: [
+      { id: 'chi-10', weight: '10g', weightGrams: 10, price: 180 },
+      { id: 'chi-50', weight: '50g', weightGrams: 50, price: 900 },
+      { id: 'chi-100', weight: '100g', weightGrams: 100, price: 1800 },
+      { id: 'chi-250', weight: '250g', weightGrams: 250, price: 4300 },
+      { id: 'chi-500', weight: '500g', weightGrams: 500, price: 8400 },
+      { id: 'chi-1000', weight: '1kg', weightGrams: 1000, price: 16500 },
+    ],
+    nutritionFacts: { calories: 673, protein: 14, fat: 68, carbs: 13 },
+  },
+  {
+    id: 'ing-walnut',
+    name: 'Gilgit Snow White Walnuts',
+    image: 'https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?auto=format&fit=crop&w=400&q=80',
+    inStock: true,
+    portions: [
+      { id: 'wal-10', weight: '10g', weightGrams: 10, price: 70 },
+      { id: 'wal-50', weight: '50g', weightGrams: 50, price: 350 },
+      { id: 'wal-100', weight: '100g', weightGrams: 100, price: 700 },
+      { id: 'wal-250', weight: '250g', weightGrams: 250, price: 1650 },
+      { id: 'wal-500', weight: '500g', weightGrams: 500, price: 3200 },
+      { id: 'wal-1000', weight: '1kg', weightGrams: 1000, price: 6200 },
+    ],
+    nutritionFacts: { calories: 654, protein: 15, fat: 65, carbs: 14 },
+  },
+  {
+    id: 'ing-cashew',
+    name: 'Jumbo Roasted Cashews W180',
+    image: 'https://images.unsplash.com/photo-1536591375315-1b83681403bf?auto=format&fit=crop&w=400&q=80',
+    inStock: true,
+    portions: [
+      { id: 'cas-10', weight: '10g', weightGrams: 10, price: 75 },
+      { id: 'cas-50', weight: '50g', weightGrams: 50, price: 375 },
+      { id: 'cas-100', weight: '100g', weightGrams: 100, price: 750 },
+      { id: 'cas-250', weight: '250g', weightGrams: 250, price: 1750 },
+      { id: 'cas-500', weight: '500g', weightGrams: 500, price: 3400 },
+      { id: 'cas-1000', weight: '1kg', weightGrams: 1000, price: 6600 },
+    ],
+    nutritionFacts: { calories: 553, protein: 18, fat: 44, carbs: 30 },
+  },
+  {
+    id: 'ing-ajwa',
+    name: 'Ajwa Al-Madinah VIP Dates',
+    image: 'https://images.unsplash.com/photo-1598030304671-5aa1d6f21128?auto=format&fit=crop&w=400&q=80',
+    inStock: true,
+    portions: [
+      { id: 'ajw-10', weight: '10g', weightGrams: 10, price: 55 },
+      { id: 'ajw-50', weight: '50g', weightGrams: 50, price: 275 },
+      { id: 'ajw-100', weight: '100g', weightGrams: 100, price: 550 },
+      { id: 'ajw-250', weight: '250g', weightGrams: 250, price: 1300 },
+      { id: 'ajw-500', weight: '500g', weightGrams: 500, price: 2500 },
+      { id: 'ajw-1000', weight: '1kg', weightGrams: 1000, price: 4800 },
+    ],
+    nutritionFacts: { calories: 277, protein: 2, fat: 0, carbs: 75 },
+  },
+  {
+    id: 'ing-pistachio',
+    name: 'Peshawari Salted Roasted Pistachios',
+    image: 'https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=400&q=80',
+    inStock: true,
+    portions: [
+      { id: 'pis-10', weight: '10g', weightGrams: 10, price: 95 },
+      { id: 'pis-50', weight: '50g', weightGrams: 50, price: 475 },
+      { id: 'pis-100', weight: '100g', weightGrams: 100, price: 950 },
+      { id: 'pis-250', weight: '250g', weightGrams: 250, price: 2200 },
+      { id: 'pis-500', weight: '500g', weightGrams: 500, price: 4300 },
+      { id: 'pis-1000', weight: '1kg', weightGrams: 1000, price: 8400 },
+    ],
+    nutritionFacts: { calories: 562, protein: 20, fat: 45, carbs: 28 },
+  },
+];
+
+export const INITIAL_CATEGORIES: CategoryItem[] = [
+  {
+    id: 'mixed',
+    name: 'Mixed Dry Fruits',
+    image: 'https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=480&q=65&fm=webp',
+    description: 'Artisanal roasted & raw mixed nut blends',
+    isSystem: true,
+  },
+  {
+    id: 'nuts',
+    name: 'Premium Nuts',
+    image: 'https://images.unsplash.com/photo-1508746829417-e6f548d8d6ed?auto=format&fit=crop&w=480&q=65&fm=webp',
+    description: 'Single-origin pine nuts, almonds & walnuts',
+    isSystem: true,
+  },
+  {
+    id: 'powders',
+    name: 'Dry Fruit Powders',
+    image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=480&q=65&fm=webp',
+    description: 'Cold stone-ground nutrient boosters',
+    isSystem: true,
+  },
+  {
+    id: 'dates-raisins',
+    name: 'Dates & Raisins',
+    image: 'https://images.unsplash.com/photo-1598030304671-5aa1d6f21128?auto=format&fit=crop&w=480&q=65&fm=webp',
+    description: 'Ajwa, Amber dates and green raisins',
+    isSystem: true,
+  },
+  {
+    id: 'gift-boxes',
+    name: 'Luxury Gift Boxes',
+    image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=480&q=65&fm=webp',
+    description: 'Velvet tins & wooden gift collections',
+    isSystem: true,
+  },
+];
 
 export const INITIAL_SETTINGS: StoreSettings = {
   storeName: 'Eirvan Foods®',
   tagline: 'Natural Goodness • Better Tomorrow',
   contactPhone: '+92 317 6369458',
   whatsappNumber: '+92 317 6369458',
-  contactEmail: 'care@eirvanfoods.com',
+  contactEmail: 'eirvanfoods@gmail.com',
   freeShippingThreshold: 3500, // PKR
   standardShippingRate: 250, // PKR
   codEnabled: true,
@@ -55,7 +264,6 @@ export const INITIAL_PRODUCTS: Product[] = [
   {
     id: 'prod-1',
     name: 'Royal Shahi Trail Mix',
-    urduName: 'شاہی مکس ڈرائی فروٹس',
     slug: 'royal-shahi-trail-mix',
     category: 'mixed',
     categoryLabel: 'Mixed Dry Fruits',
@@ -94,12 +302,12 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Natural source of zinc and copper for radiant skin and immune support',
     ],
     inStock: true,
+    viewCount: 1420,
   },
 
   {
     id: 'prod-2',
     name: 'Diabetic Care Vitality Seed & Nut Blend',
-    urduName: 'ذیابیطس اسپیشل کیئر مکس',
     slug: 'diabetic-care-vitality-blend',
     category: 'mixed',
     categoryLabel: 'Mixed Dry Fruits',
@@ -137,13 +345,13 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Plant lignans and zinc support cellular insulin receptor sensitivity',
     ],
     inStock: true,
+    viewCount: 890,
   },
 
   // 2. Premium Nuts
   {
     id: 'prod-3',
     name: 'Kashmiri Mamra Almonds (Grade AAA)',
-    urduName: 'کشمیری اصلی ممرا بادام',
     slug: 'kashmiri-mamra-almonds-aaa',
     category: 'nuts',
     categoryLabel: 'Premium Nuts',
@@ -181,12 +389,12 @@ export const INITIAL_PRODUCTS: Product[] = [
       'High natural oil stimulates joint lubrication and cognitive neurotransmitters',
     ],
     inStock: true,
+    viewCount: 3120,
   },
 
   {
     id: 'prod-4',
     name: 'Gilgit-Baltistan Snow White Walnuts',
-    urduName: 'گلگت کے اصلی سفید اخروٹ کی گری',
     slug: 'gilgit-snow-white-walnut-kernels',
     category: 'nuts',
     categoryLabel: 'Premium Nuts',
@@ -224,12 +432,12 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Natural source of bioactive melatonin for restful and restorative sleep',
     ],
     inStock: true,
+    viewCount: 1680,
   },
 
   {
     id: 'prod-5',
     name: 'Jumbo Roasted Cashews (W180 King Grade)',
-    urduName: 'روسٹڈ کاجو ڈبلیو ۱۸۰ جمبو سائز',
     slug: 'jumbo-roasted-cashews-w180',
     category: 'nuts',
     categoryLabel: 'Premium Nuts',
@@ -266,12 +474,12 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Delivers anandamide precursors that elevate positive mental mood',
     ],
     inStock: true,
+    viewCount: 2450,
   },
 
   {
     id: 'prod-6',
     name: 'Balochistan Roasted Chilgoza (Pine Nuts in Shell)',
-    urduName: 'بلوچستان کے بھنے ہوئے اصلی چلغوزے',
     slug: 'balochistan-roasted-chilgoza-pine-nuts',
     category: 'nuts',
     categoryLabel: 'Premium Nuts',
@@ -308,13 +516,13 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Provides bioavailable zinc that supports stamina and reproductive vigor',
     ],
     inStock: true,
+    viewCount: 940,
   },
 
   // 3. Dry Fruit Powders
   {
     id: 'prod-7',
     name: 'Shahi Royal Panjiri & Dry Fruit Nutrition Powder',
-    urduName: 'شاہی پنجیری و ڈرائی فروٹ نیوٹریشن پاؤڈر',
     slug: 'shahi-royal-panjiri-dry-fruit-powder',
     category: 'powders',
     categoryLabel: 'Dry Fruit Powders',
@@ -351,12 +559,12 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Restores maternal vigor and lactation vitality post-pregnancy',
     ],
     inStock: true,
+    viewCount: 1820,
   },
 
   {
     id: 'prod-8',
     name: 'Toddler & Baby Brain-Growth Nutri Powder (Sugar-Free)',
-    urduName: 'بچوں کا برین بوسٹر ڈرائی فروٹ پاؤڈر (بغیر چینی)',
     slug: 'baby-brain-growth-nutri-powder',
     category: 'powders',
     categoryLabel: 'Dry Fruit Powders',
@@ -393,13 +601,13 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Completely free of artificial sweeteners, preservatives, or gluten additives',
     ],
     inStock: true,
+    viewCount: 2150,
   },
 
   // 4. Dates & Raisins
   {
     id: 'prod-9',
     name: 'Ajwa Al-Madinah Al-Munawwarah (Royal VIP)',
-    urduName: 'عجوہ مدینہ منورہ رائل وی آئی پی',
     slug: 'ajwa-al-madinah-royal-vip',
     category: 'dates-raisins',
     categoryLabel: 'Dates & Raisins',
@@ -436,12 +644,12 @@ export const INITIAL_PRODUCTS: Product[] = [
       'High bioavailable potassium regulates healthy systemic blood pressure',
     ],
     inStock: true,
+    viewCount: 4850,
   },
 
   {
     id: 'prod-10',
     name: 'Kandahari Sundarkhani Raisins (Grade A)',
-    urduName: 'قندھاری سندرخانی کشمش',
     slug: 'kandahari-sundarkhani-raisins',
     category: 'dates-raisins',
     categoryLabel: 'Dates & Raisins',
@@ -478,13 +686,13 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Packed with catechin antioxidants that safeguard eye and capillary wellness',
     ],
     inStock: true,
+    viewCount: 1260,
   },
 
   // 5. Luxury Gift Boxes
   {
     id: 'prod-11',
     name: 'Gulberg Royal Handcrafted Pine Wood 4-Jar Hamper',
-    urduName: 'گلبورگ رائل ہینڈکرافٹڈ ووڈن گفٹ باکس',
     slug: 'gulberg-royal-pine-wood-gift-hamper',
     category: 'gift-boxes',
     categoryLabel: 'Gift Boxes',
@@ -519,12 +727,12 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Bespoke calligraphy card customization available for weddings and corporate orders',
     ],
     inStock: true,
+    viewCount: 980,
   },
 
   {
     id: 'prod-12',
     name: 'Zamarrud Emerald Velvet 6-Section Luxury Tray',
-    urduName: 'زمرد ایمرلڈ ویلوٹ لگژری گفٹ ٹرے',
     slug: 'zamarrud-emerald-velvet-luxury-tray',
     category: 'gift-boxes',
     categoryLabel: 'Gift Boxes',
@@ -559,6 +767,7 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Protected under clear anti-scratch food-safe acrylic canopy',
     ],
     inStock: true,
+    viewCount: 760,
   },
 ];
 
