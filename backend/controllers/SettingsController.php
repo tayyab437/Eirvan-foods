@@ -12,6 +12,20 @@ use Eirvan\Validators\RequestValidator;
  */
 final class SettingsController
 {
+    private const PUBLIC_FIELDS = [
+        'storeName',
+        'tagline',
+        'contactPhone',
+        'whatsappNumber',
+        'contactEmail',
+        'freeShippingThreshold',
+        'standardShippingRate',
+        'codEnabled',
+        'bankDetails',
+        'announcementBarMessage',
+        'announcementActive',
+    ];
+
     public function __construct(
         private FirestoreService $firestore,
         private AuthMiddleware $auth
@@ -20,10 +34,16 @@ final class SettingsController
     public function getPublic(): array
     {
         $doc = $this->firestore->getDocument('settings', 'main');
+        $filtered = null;
         if (is_array($doc)) {
-            unset($doc['_docId'], $doc['_updateTime']);
+            $filtered = [];
+            foreach (self::PUBLIC_FIELDS as $field) {
+                if (array_key_exists($field, $doc)) {
+                    $filtered[$field] = $doc[$field];
+                }
+            }
         }
-        return ['status' => 200, 'body' => ['success' => true, 'settings' => $doc]];
+        return ['status' => 200, 'body' => ['success' => true, 'settings' => $filtered]];
     }
 
     public function updateAdmin(array $input): array

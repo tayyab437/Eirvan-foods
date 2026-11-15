@@ -47,10 +47,24 @@ final class OrderController
         }
 
         $idempotencyKey = RequestValidator::cleanString($input['idempotencyKey'], 128);
+        $couponCode = strtoupper(preg_replace('/[^A-Z0-9_\-]/', '', trim((string) ($input['couponCode'] ?? ''))) ?? '');
+        $paymentMethod = (string) $input['paymentMethod'];
+        $bankRef = RequestValidator::cleanString($input['bankReference'] ?? '', 120);
+        $requestHash = $this->computeOrderFingerprint($input, $couponCode);
 
         // Fast-path idempotency check before opening a write transaction
         $existingIdem = $this->firestore->getDocument('order_idempotency', $idempotencyKey);
         if (is_array($existingIdem) && !empty($existingIdem['orderId'])) {
+            $storedHash = (string) ($existingIdem['requestHash'] ?? '');
+            if ($storedHash !== '' && !hash_equals($storedHash, $requestHash)) {
+                return [
+                    'status' => 409,
+                    'body' => [
+                        'success' => false,
+                        'error' => 'Idempotency key was already used for a different order payload. Please refresh and submit again.',
+                    ],
+                ];
+            }
             $existingOrder = $this->firestore->getDocument('orders', (string) $existingIdem['orderId']);
             if (is_array($existingOrder)) {
                 return [
@@ -64,14 +78,14 @@ final class OrderController
             }
         }
 
-        $couponCode = strtoupper(preg_replace('/[^A-Z0-9_\-]/', '', trim((string) ($input['couponCode'] ?? ''))) ?? '');
-        $paymentMethod = (string) $input['paymentMethod'];
-        $bankRef = RequestValidator::cleanString($input['bankReference'] ?? '', 120);
-
         try {
-            $result = $this->firestore->runTransaction(function (string $tx) use ($input, $idempotencyKey, $couponCode, $paymentMethod, $bankRef) {
+            $result = $this->firestore->runTransaction(function (string $tx) use ($input, $idempotencyKey, $requestHash, $couponCode, $paymentMethod, $bankRef) {
                 $idemTxDoc = $this->firestore->getDocument('order_idempotency', $idempotencyKey, $tx);
                 if (is_array($idemTxDoc) && !empty($idemTxDoc['orderId'])) {
+                    $storedTxHash = (string) ($idemTxDoc['requestHash'] ?? '');
+                    if ($storedTxHash !== '' && !hash_equals($storedTxHash, $requestHash)) {
+                        throw new RuntimeException('CONFLICT:Idempotency key was already used for a different order payload. Please refresh and submit again.');
+                    }
                     $replayOrder = $this->firestore->getDocument('orders', (string) $idemTxDoc['orderId'], $tx);
                     if (is_array($replayOrder)) {
                         return [
@@ -368,6 +382,7 @@ final class OrderController
                 $writes[] = $this->firestore->buildCreateWrite('order_idempotency', $idempotencyKey, [
                     'orderId' => $orderId,
                     'orderNumber' => $orderNumber,
+                    'requestHash' => $requestHash,
                     'createdAt' => $createdAt,
                 ]);
 
@@ -407,6 +422,9 @@ final class OrderController
             }
             if (str_starts_with($msg, 'STOCK:')) {
                 return ['status' => 409, 'body' => ['success' => false, 'error' => substr($msg, 6)]];
+            }
+            if (str_starts_with($msg, 'CONFLICT:')) {
+                return ['status' => 409, 'body' => ['success' => false, 'error' => substr($msg, 9)]];
             }
             if ($msg === 'TRANSACTION_CONFLICT') {
                 return ['status' => 409, 'body' => ['success' => false, 'error' => 'Inventory changed while placing your order. Please try again.']];
@@ -563,7 +581,7 @@ final class OrderController
                             continue;
                         }
                         $boxDoc = $this->firestore->getDocument('shahi_boxes', (string) $boxId, $tx);
-                        if (is_array($boxDoc)) {
+                        if (is_array($boxDoc) && $this->resolveInventoryPolicy($boxDoc, 'stock') === 'tracked') {
                             $newStock = max(0, (int) ($boxDoc['stock'] ?? 0)) + $usedQtyInt;
                             $writes[] = $this->firestore->buildUpdateWithPrecondition(
                                 'shahi_boxes',
@@ -584,7 +602,7 @@ final class OrderController
                             continue;
                         }
                         $ingDoc = $this->firestore->getDocument('shahi_ingredients', (string) $ingId, $tx);
-                        if (is_array($ingDoc)) {
+                        if (is_array($ingDoc) && $this->resolveInventoryPolicy($ingDoc, 'stockGrams') === 'tracked') {
                             $newGrams = max(0, (int) ($ingDoc['stockGrams'] ?? 0)) + $usedGramsInt;
                             $writes[] = $this->firestore->buildUpdateWithPrecondition(
                                 'shahi_ingredients',
@@ -951,6 +969,59 @@ final class OrderController
             return true;
         }
         return time() > $ts;
+    }
+
+    private function computeOrderFingerprint(array $input, string $couponCode): string
+    {
+        $normalizedItems = [];
+        foreach ((array) ($input['items'] ?? []) as $rawItem) {
+            if (!is_array($rawItem)) {
+                continue;
+            }
+            $entry = [
+                'productId' => RequestValidator::cleanString($rawItem['productId'] ?? '', 128),
+                'variantId' => RequestValidator::cleanString($rawItem['variantId'] ?? '', 128),
+                'quantity' => (int) ($rawItem['quantity'] ?? 0),
+            ];
+            if (is_array($rawItem['customBuild'] ?? null)) {
+                $cb = $rawItem['customBuild'];
+                $cbItems = [];
+                foreach ((array) ($cb['items'] ?? []) as $sub) {
+                    if (!is_array($sub)) {
+                        continue;
+                    }
+                    $cbItems[] = [
+                        'ingredientId' => RequestValidator::cleanString($sub['ingredientId'] ?? '', 128),
+                        'portionId' => RequestValidator::cleanString($sub['portionId'] ?? '', 128),
+                        'weightLabel' => RequestValidator::cleanString($sub['weightLabel'] ?? '', 20),
+                        'multiplier' => (int) ($sub['multiplier'] ?? 1),
+                    ];
+                }
+                $entry['customBuild'] = [
+                    'kind' => RequestValidator::cleanString($cb['kind'] ?? '', 40),
+                    'boxId' => RequestValidator::cleanString($cb['boxId'] ?? '', 128),
+                    'title' => RequestValidator::cleanString($cb['title'] ?? '', 100),
+                    'items' => $cbItems,
+                ];
+            }
+            $normalizedItems[] = $entry;
+        }
+
+        $canonical = [
+            'customerName' => RequestValidator::cleanString($input['customerName'] ?? '', 100),
+            'normalizedPhone' => RequestValidator::normalizePhone((string) ($input['customerPhone'] ?? '')),
+            'customerEmail' => RequestValidator::cleanString($input['customerEmail'] ?? '', 100),
+            'city' => RequestValidator::cleanString($input['city'] ?? '', 50),
+            'province' => RequestValidator::cleanString($input['province'] ?? '', 50),
+            'address' => RequestValidator::cleanString($input['address'] ?? '', 300),
+            'specialInstructions' => RequestValidator::cleanString($input['specialInstructions'] ?? '', 500),
+            'paymentMethod' => (string) ($input['paymentMethod'] ?? ''),
+            'bankReference' => RequestValidator::cleanString($input['bankReference'] ?? '', 120),
+            'couponCode' => $couponCode,
+            'items' => $normalizedItems,
+        ];
+
+        return hash('sha256', json_encode($canonical, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '');
     }
 
     private function sanitizeOrderForCustomer(array $order): array

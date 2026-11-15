@@ -7,6 +7,7 @@ import {
   IONOS_PHP_SECRETS_TEMPLATE,
   IONOS_DEPLOYMENT_CHECKLIST,
 } from '../services/ionosExport';
+import { apiRequest } from '../services/apiClient';
 import {
   BarChart3,
   Package,
@@ -3212,9 +3213,12 @@ export const AdminDashboard: React.FC = () => {
                   setCheckingHealth(true);
                   setHealthResult(null);
                   try {
-                    const res = await fetch('/api/health');
-                    const text = await res.text();
-                    setHealthResult({ ok: res.ok, status: res.status, body: text });
+                    const data = await apiRequest('/api/health', { requireAuth: true });
+                    setHealthResult({
+                      ok: true,
+                      status: 200,
+                      body: JSON.stringify(data, null, 2),
+                    });
                   } catch (err: unknown) {
                     setHealthResult({
                       ok: false,

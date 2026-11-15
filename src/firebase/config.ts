@@ -1,4 +1,31 @@
-import firebaseConfig from '../../firebase-applet-config.json';
+import baseFirebaseConfig from '../../firebase-applet-config.json';
+
+const PRODUCTION_FIRESTORE_DB_ID = 'ai-studio-zauqesehatpremiu-a42b0907-2253-405b-8d7e-9cfd4b314afc';
+
+const env = (import.meta as any)?.env || {};
+const appEnv = String(env.VITE_APP_ENV || '').trim().toLowerCase();
+
+const firebaseConfig = {
+  ...baseFirebaseConfig,
+  projectId: env.VITE_FIREBASE_PROJECT_ID || baseFirebaseConfig.projectId,
+  appId: env.VITE_FIREBASE_APP_ID || baseFirebaseConfig.appId,
+  apiKey: env.VITE_FIREBASE_API_KEY || baseFirebaseConfig.apiKey,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || baseFirebaseConfig.authDomain,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || baseFirebaseConfig.storageBucket,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || baseFirebaseConfig.messagingSenderId,
+  firestoreDatabaseId: env.VITE_FIRESTORE_DATABASE_ID || baseFirebaseConfig.firestoreDatabaseId,
+};
+
+if (
+  appEnv === 'staging' &&
+  (!firebaseConfig.firestoreDatabaseId ||
+    firebaseConfig.firestoreDatabaseId === PRODUCTION_FIRESTORE_DB_ID ||
+    firebaseConfig.firestoreDatabaseId.startsWith('REPLACE_WITH_'))
+) {
+  throw new Error(
+    'Staging isolation guard: VITE_FIRESTORE_DATABASE_ID must point to an isolated non-production Firestore database.'
+  );
+}
 
 // Shared app instance (initialized lazily)
 let appInstance: any = null;

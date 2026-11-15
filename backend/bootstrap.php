@@ -105,7 +105,7 @@ $gemini = new GeminiService((string) $config['gemini_api_key'], $logger);
 return [
     'config' => $config,
     'logger' => $logger,
-    'health' => new HealthController($config, $jwtService, $firestore),
+    'health' => new HealthController($config, $jwtService, $firestore, $auth),
     'auth' => new AuthController($auth),
     'orders' => new OrderController($firestore, $auth, $rateLimit, $logger),
     'tracking' => new TrackingController($firestore, $rateLimit),

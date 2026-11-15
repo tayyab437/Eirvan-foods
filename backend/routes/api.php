@@ -9,9 +9,12 @@ return static function (array $container): void {
     $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
     $uriPath = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
 
-    // Normalize path relative to /api
-    $apiPos = strpos($uriPath, '/api');
-    $route = $apiPos !== false ? substr($uriPath, $apiPos + 4) : $uriPath;
+    // Normalize path relative to /api segment (supports root /api/* and subfolder /staging/api/*)
+    if (preg_match('#(?:^|/)api(/.*)?$#', $uriPath, $apiMatch) === 1) {
+        $route = $apiMatch[1] ?? '/';
+    } else {
+        $route = $uriPath;
+    }
     $route = '/' . trim($route, '/');
 
     // Parse JSON input for write requests (bounded to 512KB)

@@ -51,18 +51,44 @@ export const CheckoutView: React.FC = () => {
 
   const [idempotencyKey, setIdempotencyKey] = useState<string>(createIdempotencyKey);
 
-  const cartSignature = React.useMemo(
+  const orderSignature = React.useMemo(
     () =>
-      JSON.stringify(
-        cart.map((c) => `${c.productId}:${c.variantId}:${c.quantity}`)
-      ) +
-      `|${appliedCoupon?.code || ''}`,
-    [cart, appliedCoupon?.code]
+      JSON.stringify({
+        items: cart.map((c) => ({
+          productId: c.productId,
+          variantId: c.variantId,
+          quantity: c.quantity,
+          customBuild: c.customBuild ?? null,
+        })),
+        couponCode: appliedCoupon?.code || '',
+        customerName: customerName.trim(),
+        customerPhone: normalizePakistaniPhone(customerPhone),
+        customerEmail: customerEmail.trim(),
+        province,
+        city,
+        address: address.trim(),
+        specialInstructions: specialInstructions.trim(),
+        paymentMethod,
+        bankRef: bankRef.trim(),
+      }),
+    [
+      cart,
+      appliedCoupon?.code,
+      customerName,
+      customerPhone,
+      customerEmail,
+      province,
+      city,
+      address,
+      specialInstructions,
+      paymentMethod,
+      bankRef,
+    ]
   );
 
   React.useEffect(() => {
     setIdempotencyKey(createIdempotencyKey());
-  }, [cartSignature]);
+  }, [orderSignature]);
 
   if (cart.length === 0) {
     return (

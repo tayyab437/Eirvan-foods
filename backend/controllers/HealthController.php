@@ -3,22 +3,39 @@ declare(strict_types=1);
 
 namespace Eirvan\Controllers;
 
+use Eirvan\Middleware\AuthMiddleware;
 use Eirvan\Services\FirestoreService;
 use Eirvan\Services\GoogleJwtService;
 
 /**
  * Read-only system health and IONOS compatibility check endpoint.
+ * Unauthenticated callers receive only minimal liveness status; verified admins receive runtime diagnostics.
  */
 final class HealthController
 {
     public function __construct(
         private array $config,
         private GoogleJwtService $jwtService,
-        private FirestoreService $firestore
+        private FirestoreService $firestore,
+        private AuthMiddleware $auth
     ) {}
 
     public function status(): array
     {
+        $user = $this->auth->authenticateOptional();
+        $isAdmin = is_array($user) && $this->auth->isUserAdmin($user);
+
+        if (!$isAdmin) {
+            return [
+                'status' => 200,
+                'body' => [
+                    'success' => true,
+                    'status' => 'ok',
+                    'timestamp' => gmdate('c'),
+                ],
+            ];
+        }
+
         $extensions = [
             'curl' => extension_loaded('curl'),
             'openssl' => extension_loaded('openssl'),
@@ -32,7 +49,6 @@ final class HealthController
 
         if ($credentialsPresent) {
             try {
-                // Non-destructive read-only ping on settings/main
                 $doc = $this->firestore->getDocument('settings', 'main');
                 $firestoreConnected = true;
                 $firestoreNote = $doc !== null ? 'Connected and settings document readable.' : 'Connected (settings/main not yet initialized).';
@@ -45,10 +61,13 @@ final class HealthController
             'status' => 200,
             'body' => [
                 'success' => true,
-                'phpVersion' => PHP_VERSION,
+                'status' => 'ok',
+                'env' => (string) ($this->config['env'] ?? 'production'),
+                'phpCompatible' => version_compare(PHP_VERSION, '8.1.0', '>='),
+                'phpSeries' => PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION,
                 'extensions' => $extensions,
                 'credentialsConfigured' => $credentialsPresent,
-                'geminiConfigured' => $this->config['gemini_api_key'] !== '',
+                'geminiConfigured' => ($this->config['gemini_api_key'] ?? '') !== '',
                 'firestoreConnected' => $firestoreConnected,
                 'firestoreNote' => $firestoreNote,
                 'timestamp' => gmdate('c'),

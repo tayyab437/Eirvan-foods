@@ -351,7 +351,11 @@ final class FirestoreService
             'writes' => $writes,
         ]);
 
-        if ($res['status'] === 409) {
+        $errStatus = strtoupper((string) ($res['body']['error']['status'] ?? ''));
+        if (
+            $res['status'] === 409
+            || in_array($errStatus, ['ABORTED', 'FAILED_PRECONDITION', 'ALREADY_EXISTS'], true)
+        ) {
             throw new RuntimeException('TRANSACTION_CONFLICT');
         }
         if ($res['status'] >= 400) {

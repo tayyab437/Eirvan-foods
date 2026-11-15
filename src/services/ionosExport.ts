@@ -11,26 +11,25 @@ declare(strict_types=1);
  * Never commit real service-account credentials or Gemini API keys into version control.
  */
 return [
-    'FIREBASE_PROJECT_ID' => 'gen-lang-client-0351129330',
-    'FIRESTORE_DATABASE_ID' => 'ai-studio-zauqesehatpremiu-a42b0907-2253-405b-8d7e-9cfd4b314afc',
-    'FIREBASE_SERVICE_ACCOUNT_PATH' => dirname(__DIR__) . '/service-account.json',
-    'GEMINI_API_KEY' => '', // Optional: set only if AI Sommelier / Image Studio endpoints are enabled
-    'ALLOWED_ORIGINS' => [
+    'app_env' => 'production',
+    'app_debug' => false,
+    'firebase_project_id' => 'gen-lang-client-0351129330',
+    'firestore_database_id' => 'ai-studio-zauqesehatpremiu-a42b0907-2253-405b-8d7e-9cfd4b314afc',
+    'service_account_path' => __DIR__ . '/../credentials/service-account.json',
+    'gemini_api_key' => '', // Optional: set only if AI Sommelier / Image Studio endpoints are enabled
+    'allowed_origins' => [
         'https://yourdomain.com',
         'https://www.yourdomain.com',
     ],
-    'ENVIRONMENT' => 'production',
-    'ADMIN_ROLES' => ['admin', 'super_admin', 'superadmin'],
-    'RATE_LIMIT_DIR' => dirname(__DIR__) . '/storage/rate_limits',
-    'LOG_DIR' => dirname(__DIR__) . '/storage/logs',
+    'trusted_proxies' => [],
 ];
 `;
 
 export const IONOS_DEPLOYMENT_CHECKLIST = [
   'Upload public_html/ contents (compiled React SPA, .htaccess, and api/index.php) to IONOS Webspace document root.',
   'Upload backend/ and private/ directories one level above public_html/ (never inside public_html/).',
-  'Configure private/config/secrets.php and private/service-account.json (IAM role: roles/datastore.user, perms 0600).',
-  'Ensure private/storage/logs and private/storage/rate_limits are writable by the PHP process (0750).',
+  'Configure private/config/secrets.php and private/credentials/service-account.json (IAM role: roles/datastore.user, perms 0600).',
+  'Ensure private/logs and private/cache directories are writable by the PHP process (0750).',
   'Create /admins/{uid} documents in Firestore with { uid, email, role: "super_admin", active: true } for authorized Google accounts.',
   'Verify GET /api/health passes cleanly before deploying staged DRAFT_firestore.rules in Firebase Console.',
 ];
