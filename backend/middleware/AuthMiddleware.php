@@ -27,7 +27,7 @@ final class AuthMiddleware
         $this->logger = $logger;
     }
 
-    public function extractBearerToken(): ?string
+    public function extractRawAuthorizationHeader(): string
     {
         $header = $_SERVER['HTTP_AUTHORIZATION']
             ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
@@ -35,14 +35,22 @@ final class AuthMiddleware
 
         if ($header === '' && function_exists('apache_request_headers')) {
             $headers = apache_request_headers();
-            foreach ($headers as $k => $v) {
-                if (strtolower((string) $k) === 'authorization') {
-                    $header = (string) $v;
-                    break;
+            if (is_array($headers)) {
+                foreach ($headers as $k => $v) {
+                    if (strtolower((string) $k) === 'authorization') {
+                        $header = (string) $v;
+                        break;
+                    }
                 }
             }
         }
 
+        return trim((string) $header);
+    }
+
+    public function extractBearerToken(): ?string
+    {
+        $header = $this->extractRawAuthorizationHeader();
         if (preg_match('/^\s*Bearer\s+([A-Za-z0-9\-_\.]+)\s*$/', $header, $matches)) {
             return $matches[1];
         }
@@ -65,6 +73,11 @@ final class AuthMiddleware
         }
     }
 
+    public function verifyBearerToken(string $token): array
+    {
+        return $this->verifier->verifyIdToken($token);
+    }
+
     public function requireAuthenticated(): array
     {
         $token = $this->extractBearerToken();
@@ -80,25 +93,44 @@ final class AuthMiddleware
         }
     }
 
-    public function isUserAdmin(array $user): bool
+    /**
+     * Evaluates server-side admin access against Firestore /admins/{uid}.
+     *
+     * @return array{isAdmin: bool, authStatus: string}
+     */
+    public function evaluateAdminAccess(array $user): array
     {
         if (empty($user['uid']) || empty($user['emailVerified']) || $user['emailVerified'] !== true) {
-            return false;
+            return ['isAdmin' => false, 'authStatus' => 'email_unverified'];
         }
 
         $adminDoc = $this->firestore->getDocument('admins', (string) $user['uid']);
         if (!is_array($adminDoc)) {
-            return false;
+            return ['isAdmin' => false, 'authStatus' => 'missing_admin_doc'];
         }
 
         // Strict active flag requirement: missing or non-true active is denied
         if (($adminDoc['active'] ?? null) !== true) {
-            return false;
+            return ['isAdmin' => false, 'authStatus' => 'inactive_admin'];
         }
 
         // Canonical roles: 'admin', 'super_admin' (plus legacy 'superadmin' alias) — never default missing role
         $role = $adminDoc['role'] ?? null;
-        return is_string($role) && in_array($role, ['admin', 'super_admin', 'superadmin'], true);
+        if (!is_string($role) || !in_array($role, ['admin', 'super_admin', 'superadmin'], true)) {
+            return ['isAdmin' => false, 'authStatus' => 'invalid_role'];
+        }
+
+        return ['isAdmin' => true, 'authStatus' => 'authorized'];
+    }
+
+    public function isUserAdmin(array $user): bool
+    {
+        try {
+            return $this->evaluateAdminAccess($user)['isAdmin'];
+        } catch (\Throwable $e) {
+            $this->logger->error('admin_lookup_failed', ['reason' => $e->getMessage()]);
+            return false;
+        }
     }
 
     public function requireAdmin(): array

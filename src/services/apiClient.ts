@@ -57,7 +57,13 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
 
   const data = await res.json();
   if (!res.ok || data?.success === false) {
-    throw new Error(data?.error || data?.message || `Request failed (HTTP ${res.status}).`);
+    const err = new Error(data?.error || data?.message || `Request failed (HTTP ${res.status}).`) as Error & {
+      status?: number;
+      data?: unknown;
+    };
+    err.status = res.status;
+    err.data = data;
+    throw err;
   }
 
   return data as T;

@@ -9,6 +9,7 @@ import {
   IONOS_DEPLOYMENT_CHECKLIST,
 } from '../services/ionosExport';
 import { apiRequest } from '../services/apiClient';
+import { getAdminAuthDiagnosticMessage } from '../utils/adminAuth';
 import {
   BarChart3,
   Package,
@@ -94,6 +95,8 @@ export const AdminDashboard: React.FC = () => {
     currentUser,
     isAuthReady,
     isAdminUser,
+    adminAuthDiagnostic,
+    retryAdminVerification,
     signInWithGoogle,
     signOutUser,
     isFirebaseSyncing,
@@ -110,6 +113,7 @@ export const AdminDashboard: React.FC = () => {
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
   const [orderError, setOrderError] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
   const [productSort, setProductSort] = useState<'default' | 'views-desc' | 'views-asc' | 'stock-low'>('default');
 
@@ -329,6 +333,7 @@ export const AdminDashboard: React.FC = () => {
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
+    setCatalogError(null);
 
     // Ensure slug is clean and non-empty
     const cleanSlug = editingProduct.slug.trim() || generateSlug(editingProduct.name) || `product-${Date.now()}`;
@@ -337,14 +342,17 @@ export const AdminDashboard: React.FC = () => {
       slug: cleanSlug,
     };
 
-    if (isNewProduct) {
-      await addNewProduct(productToSave);
-    } else {
-      await updateProduct(productToSave);
+    try {
+      if (isNewProduct) {
+        await addNewProduct(productToSave);
+      } else {
+        await updateProduct(productToSave);
+      }
+      setEditingProduct(null);
+      setIsNewProduct(false);
+    } catch (err) {
+      setCatalogError(err instanceof Error ? err.message : 'Unable to save product.');
     }
-
-    setEditingProduct(null);
-    setIsNewProduct(false);
   };
 
   const handleSaveCoupon = async (e: React.FormEvent) => {
@@ -416,6 +424,16 @@ export const AdminDashboard: React.FC = () => {
   }
 
   if (!currentUser || !isAdminUser) {
+    const diagnostic = getAdminAuthDiagnosticMessage(
+      currentUser ? adminAuthDiagnostic.status : 'unauthenticated',
+      currentUser?.email
+    );
+    const canRetryVerification =
+      Boolean(currentUser) &&
+      (adminAuthDiagnostic.status === 'permission_denied' ||
+        adminAuthDiagnostic.status === 'backend_error' ||
+        adminAuthDiagnostic.status === 'invalid_token');
+
     return (
       <div className="min-h-[70vh] flex items-center justify-center bg-[#F7F4EC] px-4 py-12">
         <div className="bg-white rounded-3xl border border-[#E8DDCA] p-8 sm:p-10 max-w-md w-full shadow-xl text-center space-y-6">
@@ -427,12 +445,10 @@ export const AdminDashboard: React.FC = () => {
               Protected Staff Portal
             </span>
             <h1 className="font-serif text-2xl font-bold text-[#302A25]">
-              {currentUser ? 'Unauthorized Account' : 'Administrator Sign-In'}
+              {diagnostic.title}
             </h1>
             <p className="text-xs text-gray-500 leading-relaxed">
-              {currentUser
-                ? `Signed in as ${currentUser.email || 'unknown user'}. Please sign in with the authorized store administrator Google account to access orders and wholesale leads.`
-                : 'Sign in with your authorized Google administrator account to access Store Operations, Orders, and Wholesale Leads.'}
+              {diagnostic.description}
             </p>
           </div>
 
@@ -443,6 +459,23 @@ export const AdminDashboard: React.FC = () => {
           )}
 
           <div className="space-y-3">
+            {canRetryVerification && (
+              <button
+                onClick={async () => {
+                  setAuthError(null);
+                  setAuthLoading(true);
+                  try {
+                    await retryAdminVerification();
+                  } finally {
+                    setAuthLoading(false);
+                  }
+                }}
+                disabled={authLoading}
+                className="w-full py-3 bg-[#F8F5ED] hover:bg-[#EFE8D8] border border-[#E8DDCA] text-[#244C37] text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
+              >
+                {authLoading ? 'Retrying...' : 'Retry Verification'}
+              </button>
+            )}
             {currentUser ? (
               <button
                 onClick={signOutUser}
@@ -520,6 +553,19 @@ export const AdminDashboard: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {catalogError && (
+        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center justify-between gap-4 text-xs text-red-800">
+          <span>{catalogError}</span>
+          <button
+            type="button"
+            onClick={() => setCatalogError(null)}
+            className="px-2.5 py-1 bg-white border border-red-200 rounded-lg text-[11px] font-bold hover:bg-red-100 cursor-pointer shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Admin Dashboard Sidebar & Content Layout */}
       <div className="flex flex-col lg:flex-row gap-6 items-start mt-6">
@@ -1187,9 +1233,14 @@ export const AdminDashboard: React.FC = () => {
                             <Edit className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (confirm(`Archive ${p.name}?`)) {
-                                deleteProduct(p.id);
+                                setCatalogError(null);
+                                try {
+                                  await deleteProduct(p.id);
+                                } catch (err) {
+                                  setCatalogError(err instanceof Error ? err.message : 'Unable to archive product.');
+                                }
                               }
                             }}
                             className="p-1.5 rounded-lg border border-[#E8DDCA] hover:bg-red-50 text-red-600 cursor-pointer"
@@ -2803,14 +2854,19 @@ export const AdminDashboard: React.FC = () => {
                       <td className="p-3 text-right">
                         <button
                           onClick={async () => {
-                            const updatedVariants = p.variants.map((vr) =>
-                              vr.id === v.id ? { ...vr, stock: vr.stock + 10 } : vr
-                            );
-                            await updateProduct({
-                              ...p,
-                              variants: updatedVariants,
-                              inStock: updatedVariants.some((vr) => vr.stock > 0),
-                            });
+                            setCatalogError(null);
+                            try {
+                              const updatedVariants = p.variants.map((vr) =>
+                                vr.id === v.id ? { ...vr, stock: vr.stock + 10 } : vr
+                              );
+                              await updateProduct({
+                                ...p,
+                                variants: updatedVariants,
+                                inStock: updatedVariants.some((vr) => vr.stock > 0),
+                              });
+                            } catch (err) {
+                              setCatalogError(err instanceof Error ? err.message : 'Unable to update stock.');
+                            }
                           }}
                           className="px-3 py-1 bg-[#244C37] text-white text-[11px] font-bold rounded-lg hover:bg-[#1A3828] cursor-pointer"
                         >

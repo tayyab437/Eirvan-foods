@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import { registerPreviewApiRoutes } from './previewApi';
 
 dotenv.config();
 
@@ -75,17 +76,62 @@ const getAiClient = () => {
 // Cached Google x509 public certs for Firebase ID token verification in local Node dev preview
 let cachedCerts: { keys: Record<string, string>; expiresAt: number } | null = null;
 
-async function getFirebasePublicCerts(): Promise<Record<string, string>> {
+export type ServerAuthStatus =
+  | 'authorized'
+  | 'unauthenticated'
+  | 'invalid_token'
+  | 'email_unverified'
+  | 'missing_admin_doc'
+  | 'inactive_admin'
+  | 'invalid_role'
+  | 'permission_denied'
+  | 'backend_error';
+
+interface ServerAuthError extends Error {
+  statusCode: number;
+  authStatus: ServerAuthStatus;
+  authenticated: boolean;
+}
+
+function createAuthError(
+  message: string,
+  statusCode: number,
+  authStatus: ServerAuthStatus,
+  authenticated = false
+): ServerAuthError {
+  const err = new Error(message) as ServerAuthError;
+  err.statusCode = statusCode;
+  err.authStatus = authStatus;
+  err.authenticated = authenticated;
+  return err;
+}
+
+async function getFirebasePublicCerts(forceRefresh = false): Promise<Record<string, string>> {
   const now = Date.now();
-  if (cachedCerts && cachedCerts.expiresAt > now) {
+  if (!forceRefresh && cachedCerts && cachedCerts.expiresAt > now) {
     return cachedCerts.keys;
   }
 
-  const resp = await fetch(
-    'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
-  );
+  let resp: globalThis.Response;
+  try {
+    resp = await fetch(
+      'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+    );
+  } catch {
+    throw createAuthError(
+      'Unable to reach Firebase certificate verification service.',
+      503,
+      'backend_error',
+      false
+    );
+  }
   if (!resp.ok) {
-    throw new Error(`Unable to fetch Firebase verification certificates (${resp.status}).`);
+    throw createAuthError(
+      `Unable to fetch Firebase verification certificates (${resp.status}).`,
+      503,
+      'backend_error',
+      false
+    );
   }
 
   const cacheControl = resp.headers.get('cache-control') || '';
@@ -106,20 +152,22 @@ function base64UrlDecode(segment: string): Buffer {
   return Buffer.from(padded, 'base64');
 }
 
-async function verifyAdminBearerToken(authHeader?: string): Promise<{ uid: string; email?: string }> {
+export async function verifyAdminBearerToken(
+  authHeader?: string,
+  options?: {
+    certsOverride?: Record<string, string>;
+    fetchImpl?: typeof fetch;
+  }
+): Promise<{ uid: string; email?: string }> {
   const match = authHeader?.match(/^\s*Bearer\s+([A-Za-z0-9\-_\.]+)\s*$/);
   if (!match) {
-    const err = new Error('Authentication required.');
-    (err as any).statusCode = 401;
-    throw err;
+    throw createAuthError('Authentication required.', 401, 'invalid_token', false);
   }
 
   const token = match[1];
   const parts = token.split('.');
   if (parts.length !== 3) {
-    const err = new Error('Malformed bearer token.');
-    (err as any).statusCode = 401;
-    throw err;
+    throw createAuthError('Malformed bearer token.', 401, 'invalid_token', false);
   }
 
   const [headerB64, payloadB64, signatureB64] = parts;
@@ -138,23 +186,26 @@ async function verifyAdminBearerToken(authHeader?: string): Promise<{ uid: strin
     header = JSON.parse(base64UrlDecode(headerB64).toString('utf8'));
     payload = JSON.parse(base64UrlDecode(payloadB64).toString('utf8'));
   } catch {
-    const err = new Error('Invalid token encoding.');
-    (err as any).statusCode = 401;
-    throw err;
+    throw createAuthError('Invalid token encoding.', 401, 'invalid_token', false);
   }
 
   if (header.alg !== 'RS256' || !header.kid) {
-    const err = new Error('Unsupported token algorithm or missing key ID.');
-    (err as any).statusCode = 401;
-    throw err;
+    throw createAuthError(
+      'Unsupported token algorithm or missing key ID.',
+      401,
+      'invalid_token',
+      false
+    );
   }
 
-  const certs = await getFirebasePublicCerts();
-  const certPem = certs[header.kid];
+  let certs = options?.certsOverride ?? (await getFirebasePublicCerts());
+  let certPem = certs[header.kid];
+  if (!certPem && !options?.certsOverride) {
+    certs = await getFirebasePublicCerts(true);
+    certPem = certs[header.kid];
+  }
   if (!certPem) {
-    const err = new Error('Unknown signing key ID.');
-    (err as any).statusCode = 401;
-    throw err;
+    throw createAuthError('Unknown signing key ID.', 401, 'invalid_token', false);
   }
 
   const verifier = crypto.createVerify('RSA-SHA256');
@@ -162,9 +213,7 @@ async function verifyAdminBearerToken(authHeader?: string): Promise<{ uid: strin
   verifier.end();
   const sigBuf = base64UrlDecode(signatureB64);
   if (!verifier.verify(certPem, sigBuf)) {
-    const err = new Error('Invalid token signature.');
-    (err as any).statusCode = 401;
-    throw err;
+    throw createAuthError('Invalid token signature.', 401, 'invalid_token', false);
   }
 
   const nowSec = Math.floor(Date.now() / 1000);
@@ -178,15 +227,16 @@ async function verifyAdminBearerToken(authHeader?: string): Promise<{ uid: strin
     typeof payload.iat !== 'number' ||
     payload.iat > nowSec + 300
   ) {
-    const err = new Error('Token claims invalid or expired.');
-    (err as any).statusCode = 401;
-    throw err;
+    throw createAuthError('Token claims invalid or expired.', 401, 'invalid_token', false);
   }
 
   if (payload.email_verified !== true) {
-    const err = new Error('Verified email required for administrator access.');
-    (err as any).statusCode = 403;
-    throw err;
+    throw createAuthError(
+      'Verified email required for administrator access.',
+      403,
+      'email_unverified',
+      true
+    );
   }
 
   // Verify /admins/{uid} role and active flag in Firestore using caller's verified ID token
@@ -195,14 +245,47 @@ async function verifyAdminBearerToken(authHeader?: string): Promise<{ uid: strin
   )}/databases/${encodeURIComponent(FIRESTORE_DATABASE_ID)}/documents/admins/${encodeURIComponent(
     payload.sub
   )}`;
-  const adminResp = await fetch(adminUrl, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const fetchFn = options?.fetchImpl ?? fetch;
+  let adminResp: globalThis.Response;
+  try {
+    adminResp = await fetchFn(adminUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw createAuthError(
+      'Unable to reach Firestore to verify administrator privileges.',
+      503,
+      'backend_error',
+      true
+    );
+  }
 
   if (!adminResp.ok) {
-    const err = new Error('Administrator authorization required.');
-    (err as any).statusCode = 403;
-    throw err;
+    if (adminResp.status === 404) {
+      throw createAuthError(
+        'Administrator profile not found for this account.',
+        403,
+        'missing_admin_doc',
+        true
+      );
+    }
+    if (adminResp.status === 403) {
+      throw createAuthError(
+        'Firestore security rules denied access while verifying administrator permissions.',
+        403,
+        'permission_denied',
+        true
+      );
+    }
+    if (adminResp.status === 401) {
+      throw createAuthError('Authentication token rejected by Firestore.', 401, 'invalid_token', false);
+    }
+    throw createAuthError(
+      'Unable to verify administrator privileges right now.',
+      503,
+      'backend_error',
+      true
+    );
   }
 
   const adminDoc = (await adminResp.json()) as {
@@ -213,11 +296,23 @@ async function verifyAdminBearerToken(authHeader?: string): Promise<{ uid: strin
   };
 
   const isActive = adminDoc.fields?.active?.booleanValue === true;
+  if (!isActive) {
+    throw createAuthError(
+      'Administrator account is inactive.',
+      403,
+      'inactive_admin',
+      true
+    );
+  }
+
   const role = adminDoc.fields?.role?.stringValue || '';
-  if (!isActive || !['admin', 'super_admin', 'superadmin'].includes(role)) {
-    const err = new Error('Administrator authorization required.');
-    (err as any).statusCode = 403;
-    throw err;
+  if (!['admin', 'super_admin', 'superadmin'].includes(role)) {
+    throw createAuthError(
+      'Administrator role is invalid or insufficient.',
+      403,
+      'invalid_role',
+      true
+    );
   }
 
   return { uid: payload.sub, email: payload.email };
@@ -246,6 +341,52 @@ Keep answers under 3 concise sentences with clear bullet points when needed.`,
 };
 
 // Local Dev Preview Only — in IONOS production, /api/* routes are handled by public_html/api/index.php -> backend/
+export const handleAuthSessionRequest = async (
+  req: Request,
+  res: Response,
+  verifierFn: typeof verifyAdminBearerToken = verifyAdminBearerToken
+) => {
+  const authHeader = typeof req.headers.authorization === 'string' ? req.headers.authorization.trim() : '';
+  if (!authHeader) {
+    return res.status(200).json({
+      success: true,
+      authenticated: false,
+      isAdmin: false,
+      authStatus: 'unauthenticated',
+      user: null,
+    });
+  }
+
+  try {
+    const verified = await verifierFn(authHeader);
+    return res.status(200).json({
+      success: true,
+      authenticated: true,
+      isAdmin: true,
+      authStatus: 'authorized',
+      user: {
+        uid: verified.uid,
+        email: verified.email ?? null,
+        emailVerified: true,
+      },
+    });
+  } catch (authErr: any) {
+    const status = typeof authErr?.statusCode === 'number' ? authErr.statusCode : 401;
+    const authStatus: ServerAuthStatus =
+      typeof authErr?.authStatus === 'string' ? authErr.authStatus : 'invalid_token';
+    return res.status(status).json({
+      success: false,
+      authenticated: Boolean(authErr?.authenticated),
+      isAdmin: false,
+      authStatus,
+      error: authErr?.message || 'Administrator authorization required.',
+      user: null,
+    });
+  }
+};
+
+app.get('/api/auth/session', (req, res) => handleAuthSessionRequest(req, res));
+
 const handleChatRequest = async (req: Request, res: Response) => {
   try {
     const { messages, role = 'nutritionist' } = req.body;
@@ -381,7 +522,14 @@ const handleGenerateImageRequest = async (req: Request, res: Response) => {
 app.post('/api/generate-image', handleGenerateImageRequest);
 app.post('/api/ai/generate-image', handleGenerateImageRequest);
 
-// Catch-all for unmounted PHP backend routes during local Vite/Node dev preview
+// Local Dev Preview Only — Firestore-backed parity routes for admin & storefront workflows
+registerPreviewApiRoutes(app, {
+  projectId: FIREBASE_PROJECT_ID,
+  databaseId: FIRESTORE_DATABASE_ID,
+  verifyAdminBearerToken,
+});
+
+// Catch-all for any remaining unmounted routes during local Vite/Node dev preview
 app.all('/api/*', (_req: Request, res: Response) => {
   res.status(501).json({
     success: false,
@@ -423,4 +571,8 @@ async function startServer() {
   }
 }
 
-startServer();
+if (process.env.EIRVAN_TEST_NO_LISTEN !== '1') {
+  startServer();
+}
+
+export { app };

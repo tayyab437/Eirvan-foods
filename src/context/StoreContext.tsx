@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { apiRequest } from '../services/apiClient';
+import {
+  AdminAuthDiagnostic,
+  classifyFirestoreAdminError,
+  evaluateAdminDocument,
+  isBackendUnmountedError,
+  isKnownAdminAuthStatus,
+} from '../utils/adminAuth';
 import {
   Product,
   ProductVariant,
@@ -120,6 +127,8 @@ interface StoreContextType {
   currentUser: { uid: string; email: string | null; displayName: string | null; emailVerified: boolean } | null;
   isAuthReady: boolean;
   isAdminUser: boolean;
+  adminAuthDiagnostic: AdminAuthDiagnostic;
+  retryAdminVerification: () => Promise<void>;
 
   setSearchQuery: (query: string) => void;
   setSelectedProduct: (prod: Product | null) => void;
@@ -219,6 +228,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   } | null>(null);
   const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
   const [isAdminUser, setIsAdminUser] = useState<boolean>(false);
+  const [adminAuthDiagnostic, setAdminAuthDiagnostic] = useState<AdminAuthDiagnostic>({
+    status: 'checking',
+    message: null,
+    source: 'none',
+  });
+  const latestAuthUserRef = useRef<{
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+    emailVerified: boolean;
+  } | null>(null);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
@@ -247,6 +267,111 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isGiftWizardOpen, setIsGiftWizardOpen] = useState<boolean>(false);
   const [lastPlacedOrder, setLastPlacedOrder] = useState<Order | null>(null);
 
+  const verifyAdminSessionForUser = useCallback(
+    async (
+      user: {
+        uid: string;
+        email: string | null;
+        displayName: string | null;
+        emailVerified: boolean;
+      } | null,
+      isMounted: () => boolean = () => true
+    ) => {
+      if (!user) {
+        if (isMounted()) {
+          setIsAdminUser(false);
+          setAdminAuthDiagnostic({ status: 'unauthenticated', message: null, source: 'none' });
+          setIsAuthReady(true);
+        }
+        return;
+      }
+
+      if (isMounted()) {
+        setAdminAuthDiagnostic({ status: 'checking', message: null, source: 'none' });
+      }
+
+      try {
+        const session = await apiRequest<{
+          authenticated?: boolean;
+          isAdmin?: boolean;
+          authStatus?: string;
+        }>('/api/auth/session', {
+          optionalAuth: true,
+        });
+        if (!isMounted()) return;
+
+        if (session?.isAdmin === true) {
+          setIsAdminUser(true);
+          setAdminAuthDiagnostic({ status: 'authorized', message: null, source: 'backend' });
+        } else if (session?.authenticated === false) {
+          setIsAdminUser(false);
+          setAdminAuthDiagnostic({ status: 'backend_error', message: null, source: 'backend' });
+        } else {
+          setIsAdminUser(false);
+          setAdminAuthDiagnostic({
+            status: isKnownAdminAuthStatus(session?.authStatus) ? session.authStatus : 'missing_admin_doc',
+            message: null,
+            source: 'backend',
+          });
+        }
+      } catch (apiErr) {
+        const errData = (apiErr as { data?: { authStatus?: unknown } })?.data;
+        if (!isBackendUnmountedError(apiErr) && isKnownAdminAuthStatus(errData?.authStatus)) {
+          if (isMounted()) {
+            setIsAdminUser(false);
+            setAdminAuthDiagnostic({
+              status: errData.authStatus,
+              message: null,
+              source: 'backend',
+            });
+          }
+          return;
+        }
+
+        // If PHP backend isn't mounted (e.g. local Vite-only preview), verify strictly via /admins/{uid} document read
+        try {
+          const { getFirestoreDb } = await import('../firebase/config');
+          const { doc, getDoc } = await import('firebase/firestore');
+          const db = await getFirestoreDb();
+          const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+          const evalResult = evaluateAdminDocument({
+            emailVerified: user.emailVerified,
+            exists: adminSnap.exists(),
+            data: adminSnap.exists() ? (adminSnap.data() as { active?: unknown; role?: unknown }) : null,
+          });
+          if (isMounted()) {
+            setIsAdminUser(evalResult.isAdmin);
+            setAdminAuthDiagnostic({
+              status: evalResult.status,
+              message: null,
+              source: 'firestore',
+            });
+          }
+        } catch (firestoreErr) {
+          const classifiedStatus = classifyFirestoreAdminError(firestoreErr);
+          console.warn('Administrator verification rejected:', classifiedStatus);
+          if (isMounted()) {
+            setIsAdminUser(false);
+            setAdminAuthDiagnostic({
+              status: classifiedStatus,
+              message: null,
+              source: 'firestore',
+            });
+          }
+        }
+      } finally {
+        if (isMounted()) {
+          setIsAuthReady(true);
+        }
+      }
+    },
+    []
+  );
+
+  const retryAdminVerification = useCallback(async () => {
+    await verifyAdminSessionForUser(latestAuthUserRef.current);
+  }, [verifyAdminSessionForUser]);
+
   // 1. Track Firebase Auth & Verify Admin Role Server-Side via /api/auth/session
   useEffect(() => {
     let unsubAuth = () => {};
@@ -261,59 +386,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         unsubAuth = onAuthStateChanged(auth, async (user) => {
           if (!mounted) return;
           if (!user) {
+            latestAuthUserRef.current = null;
             setCurrentUser(null);
-            setIsAdminUser(false);
-            setIsAuthReady(true);
+            await verifyAdminSessionForUser(null, () => mounted);
             return;
           }
 
-          setCurrentUser({
+          const mappedUser = {
             uid: user.uid,
             email: user.email,
             displayName: user.displayName,
             emailVerified: user.emailVerified,
-          });
-
-          try {
-            const session = await apiRequest<{ isAdmin?: boolean }>('/api/auth/session', {
-              optionalAuth: true,
-            });
-            if (mounted) {
-              setIsAdminUser(Boolean(session?.isAdmin));
-            }
-          } catch {
-            // If PHP backend isn't mounted (e.g. local Vite-only preview), verify strictly via /admins/{uid} document read
-            try {
-              const { getFirestoreDb } = await import('../firebase/config');
-              const { doc, getDoc } = await import('firebase/firestore');
-              const db = await getFirestoreDb();
-              const adminSnap = await getDoc(doc(db, 'admins', user.uid));
-              const adminData = adminSnap.exists() ? adminSnap.data() : null;
-              const role = typeof adminData?.role === 'string' ? adminData.role : '';
-              const isActive = adminData?.active === true;
-              if (mounted) {
-                setIsAdminUser(
-                  Boolean(
-                    user.emailVerified &&
-                      isActive &&
-                      ['admin', 'super_admin', 'superadmin'].includes(role)
-                  )
-                );
-              }
-            } catch {
-              if (mounted) {
-                setIsAdminUser(false);
-              }
-            }
-          } finally {
-            if (mounted) {
-              setIsAuthReady(true);
-            }
-          }
+          };
+          latestAuthUserRef.current = mappedUser;
+          setCurrentUser(mappedUser);
+          await verifyAdminSessionForUser(mappedUser, () => mounted);
         });
       } catch (err) {
         console.error('Failed to initialize Firebase Auth:', err);
-        if (mounted) setIsAuthReady(true);
+        if (mounted) {
+          setIsAdminUser(false);
+          setAdminAuthDiagnostic({ status: 'backend_error', message: null, source: 'none' });
+          setIsAuthReady(true);
+        }
       }
     };
 
@@ -322,7 +417,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       mounted = false;
       unsubAuth();
     };
-  }, []);
+  }, [verifyAdminSessionForUser]);
 
   // 2. Public Read-Only Storefront Sync (No orders, no coupon list, no unauth seeding)
   useEffect(() => {
@@ -1205,6 +1300,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         currentUser,
         isAuthReady,
         isAdminUser,
+        adminAuthDiagnostic,
+        retryAdminVerification,
         setSearchQuery,
         setSelectedProduct,
         setIsCartOpen,
