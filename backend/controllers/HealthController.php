@@ -49,9 +49,17 @@ final class HealthController
 
         if ($credentialsPresent) {
             try {
-                $doc = $this->firestore->getDocument('settings', 'main');
-                $firestoreConnected = true;
-                $firestoreNote = $doc !== null ? 'Connected and settings document readable.' : 'Connected (settings/main not yet initialized).';
+                $doc = $this->firestore->getDocument('public_settings', 'main');
+                if ($doc !== null) {
+                    $firestoreConnected = true;
+                    $firestoreNote = 'Connected and public_settings/main readable.';
+                } else {
+                    $legacyDoc = $this->firestore->getDocument('settings', 'main');
+                    $firestoreConnected = true;
+                    $firestoreNote = $legacyDoc !== null
+                        ? 'Connected (legacy settings/main present; public_settings/main awaiting explicit admin migration).'
+                        : 'Connected (public_settings/main not yet initialized).';
+                }
             } catch (\Throwable) {
                 $firestoreNote = 'Firestore connectivity failed.';
             }

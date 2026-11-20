@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { Product, Order, OrderStatus, ProductVariant, Coupon, StoreSettings } from '../types';
+import { Product, Order, OrderStatus, ProductVariant, Coupon, StoreSettings, PrivateStoreSettings, SettingsMigrationReport } from '../types';
+import { INITIAL_PRIVATE_SETTINGS } from '../data/mockData';
 import { buildSafeCsv } from '../utils/csvExport';
 import {
   IONOS_PHP_SECRETS_TEMPLATE,
@@ -55,7 +56,11 @@ export const AdminDashboard: React.FC = () => {
     coupons,
     reviews,
     settings,
+    privateSettings,
+    settingsMigrationStatus,
     updateSettings,
+    updatePrivateSettings,
+    migrateLegacySettings,
     updateProduct,
     addNewProduct,
     deleteProduct,
@@ -174,10 +179,20 @@ export const AdminDashboard: React.FC = () => {
   // Order quick inspector / receipt modal
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
 
-  // Buffered Store Settings state
+  // Buffered Public Storefront Settings state (public_settings/main)
   const [settingsForm, setSettingsForm] = useState<StoreSettings>(settings);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsFeedback, setSettingsFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Buffered Private Operational Settings state (private_settings/main)
+  const [privateForm, setPrivateForm] = useState<PrivateStoreSettings>(privateSettings || INITIAL_PRIVATE_SETTINGS);
+  const [savingPrivate, setSavingPrivate] = useState(false);
+  const [privateFeedback, setPrivateFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Explicit Admin-Controlled Legacy Migration state (settings/main -> split docs)
+  const [migratingSettings, setMigratingSettings] = useState(false);
+  const [migrationReport, setMigrationReport] = useState<SettingsMigrationReport | null>(null);
+  const [migrationError, setMigrationError] = useState<string | null>(null);
 
   // Non-destructive catalog backfill state
   const [backfilling, setBackfilling] = useState(false);
@@ -186,6 +201,12 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     setSettingsForm(settings);
   }, [settings]);
+
+  useEffect(() => {
+    if (privateSettings) {
+      setPrivateForm(privateSettings);
+    }
+  }, [privateSettings]);
 
   // Calculations for analytics
   const totalRevenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
@@ -3024,168 +3045,500 @@ export const AdminDashboard: React.FC = () => {
 
       {/* TAB 7: SETTINGS */}
       {activeTab === 'settings' && (
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setSavingSettings(true);
-            setSettingsFeedback(null);
-            try {
-              await updateSettings(settingsForm);
-              setSettingsFeedback({ type: 'success', text: 'Store settings saved securely to Firestore.' });
-            } catch (err: unknown) {
-              setSettingsFeedback({
-                type: 'error',
-                text: err instanceof Error ? err.message : 'Failed to save store settings.',
-              });
-            } finally {
-              setSavingSettings(false);
-            }
-          }}
-          className="py-6 max-w-2xl bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DDCA] shadow-xs space-y-5"
-        >
-          <div className="flex items-center justify-between border-b border-[#E8DDCA] pb-3">
-            <h3 className="font-serif text-lg font-bold text-[#244C37]">
-              Store &amp; Logistics Configuration
-            </h3>
-            <button
-              type="submit"
-              disabled={savingSettings}
-              className="px-4 py-2 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 shadow-sm"
-            >
-              {savingSettings ? 'Saving...' : 'Save Settings'}
-            </button>
-          </div>
-
-          {settingsFeedback && (
-            <div
-              className={`p-3 rounded-xl text-xs font-semibold ${
-                settingsFeedback.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                  : 'bg-rose-50 text-rose-800 border border-rose-200'
-              }`}
-            >
-              {settingsFeedback.text}
-            </div>
-          )}
-
-          <div>
-            <label className="text-xs font-bold text-[#242821] block mb-1">
-              Store Name:
-            </label>
-            <input
-              type="text"
-              required
-              value={settingsForm.storeName}
-              onChange={(e) => setSettingsForm({ ...settingsForm, storeName: e.target.value })}
-              className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-[#242821] block mb-1">
-                Contact Phone:
-              </label>
-              <input
-                type="text"
-                required
-                value={settingsForm.contactPhone}
-                onChange={(e) => setSettingsForm({ ...settingsForm, contactPhone: e.target.value })}
-                className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-[#242821] block mb-1">
-                WhatsApp Hotline:
-              </label>
-              <input
-                type="text"
-                required
-                value={settingsForm.whatsappNumber}
-                onChange={(e) => setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })}
-                className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="text-xs font-bold text-[#242821] block mb-1">
-                Contact Email:
-              </label>
-              <input
-                type="email"
-                value={settingsForm.contactEmail}
-                onChange={(e) => setSettingsForm({ ...settingsForm, contactEmail: e.target.value })}
-                className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-[#242821] block mb-1">
-                Free Shipping Threshold (PKR):
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={settingsForm.freeShippingThreshold}
-                onChange={(e) =>
-                  setSettingsForm({ ...settingsForm, freeShippingThreshold: Number(e.target.value) })
-                }
-                className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-[#242821] block mb-1">
-                Standard Shipping Rate (PKR):
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={settingsForm.standardShippingRate}
-                onChange={(e) =>
-                  setSettingsForm({ ...settingsForm, standardShippingRate: Number(e.target.value) })
-                }
-                className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-[#242821] block mb-1">
-              Top Announcement Bar Message:
-            </label>
-            <input
-              type="text"
-              value={settingsForm.announcementBarMessage}
-              onChange={(e) =>
-                setSettingsForm({ ...settingsForm, announcementBarMessage: e.target.value })
+        <div className="py-6 max-w-3xl space-y-6">
+          {/* 7A. Public Storefront & Checkout Payment Settings (public_settings/main) */}
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSavingSettings(true);
+              setSettingsFeedback(null);
+              try {
+                await updateSettings(settingsForm);
+                setSettingsFeedback({
+                  type: 'success',
+                  text: 'Public storefront settings saved cleanly to public_settings/main.',
+                });
+              } catch (err: unknown) {
+                setSettingsFeedback({
+                  type: 'error',
+                  text: err instanceof Error ? err.message : 'Failed to save public settings.',
+                });
+              } finally {
+                setSavingSettings(false);
               }
-              className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
-            />
-          </div>
+            }}
+            className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DDCA] shadow-xs space-y-5"
+          >
+            <div className="flex items-center justify-between border-b border-[#E8DDCA] pb-3">
+              <div>
+                <h3 className="font-serif text-lg font-bold text-[#244C37]">
+                  Public Storefront &amp; Checkout Settings
+                </h3>
+                <p className="text-[11px] text-[#5E5750]">
+                  Stored in <code className="font-mono">public_settings/main</code> — strictly public display &amp; customer remittance fields.
+                </p>
+              </div>
+              <button
+                type="submit"
+                disabled={savingSettings}
+                className="px-4 py-2 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 shadow-sm"
+              >
+                {savingSettings ? 'Saving...' : 'Save Public Settings'}
+              </button>
+            </div>
 
-          <div className="flex flex-wrap gap-6 pt-2 text-xs">
-            <label className="flex items-center space-x-2 cursor-pointer">
+            {settingsFeedback && (
+              <div
+                className={`p-3 rounded-xl text-xs font-semibold ${
+                  settingsFeedback.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {settingsFeedback.text}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-[#242821] block mb-1">
+                  Store Name:
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={settingsForm.storeName}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, storeName: e.target.value })}
+                  className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[#242821] block mb-1">
+                  Store Tagline:
+                </label>
+                <input
+                  type="text"
+                  value={settingsForm.tagline}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, tagline: e.target.value })}
+                  className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-[#242821] block mb-1">
+                  Public Helpline Phone:
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={settingsForm.contactPhone}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, contactPhone: e.target.value })}
+                  className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[#242821] block mb-1">
+                  Public WhatsApp Hotline:
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={settingsForm.whatsappNumber}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })}
+                  className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="text-xs font-bold text-[#242821] block mb-1">
+                  Public Support Email:
+                </label>
+                <input
+                  type="email"
+                  value={settingsForm.contactEmail}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, contactEmail: e.target.value })}
+                  className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[#242821] block mb-1">
+                  Free Shipping Threshold (PKR):
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={settingsForm.freeShippingThreshold}
+                  onChange={(e) =>
+                    setSettingsForm({ ...settingsForm, freeShippingThreshold: Number(e.target.value) })
+                  }
+                  className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[#242821] block mb-1">
+                  Standard Shipping Rate (PKR):
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={settingsForm.standardShippingRate}
+                  onChange={(e) =>
+                    setSettingsForm({ ...settingsForm, standardShippingRate: Number(e.target.value) })
+                  }
+                  className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-[#E8DDCA] pt-4 space-y-3">
+              <p className="text-xs font-bold text-[#244C37]">
+                Public Checkout Deposit &amp; Raast Instructions (Shown to Customers at Checkout)
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-[#242821] block mb-1">Bank Name:</label>
+                  <input
+                    type="text"
+                    value={settingsForm.bankDetails.bankName}
+                    onChange={(e) =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        bankDetails: { ...settingsForm.bankDetails, bankName: e.target.value },
+                      })
+                    }
+                    className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-[#242821] block mb-1">Account Title:</label>
+                  <input
+                    type="text"
+                    value={settingsForm.bankDetails.accountTitle}
+                    onChange={(e) =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        bankDetails: { ...settingsForm.bankDetails, accountTitle: e.target.value },
+                      })
+                    }
+                    className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-[#242821] block mb-1">Account Number:</label>
+                  <input
+                    type="text"
+                    value={settingsForm.bankDetails.accountNumber}
+                    onChange={(e) =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        bankDetails: { ...settingsForm.bankDetails, accountNumber: e.target.value },
+                      })
+                    }
+                    className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-[#242821] block mb-1">IBAN:</label>
+                  <input
+                    type="text"
+                    value={settingsForm.bankDetails.iban}
+                    onChange={(e) =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        bankDetails: { ...settingsForm.bankDetails, iban: e.target.value },
+                      })
+                    }
+                    className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] font-mono"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="text-[11px] font-bold text-[#242821] block mb-1">Raast ID:</label>
+                  <input
+                    type="text"
+                    value={settingsForm.bankDetails.raastId}
+                    onChange={(e) =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        bankDetails: { ...settingsForm.bankDetails, raastId: e.target.value },
+                      })
+                    }
+                    className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED] font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-[#242821] block mb-1">
+                Top Announcement Bar Message:
+              </label>
+              <input
+                type="text"
+                value={settingsForm.announcementBarMessage}
+                onChange={(e) =>
+                  setSettingsForm({ ...settingsForm, announcementBarMessage: e.target.value })
+                }
+                className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-6 pt-2 text-xs">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settingsForm.codEnabled}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, codEnabled: e.target.checked })}
+                  className="rounded text-[#244C37]"
+                />
+                <span className="font-semibold text-[#242821]">Enable Cash on Delivery (COD)</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settingsForm.announcementActive}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, announcementActive: e.target.checked })}
+                  className="rounded text-[#244C37]"
+                />
+                <span className="font-semibold text-[#242821]">Show Top Announcement Bar</span>
+              </label>
+            </div>
+          </form>
+
+          {/* 7B. Restricted Private Operational Settings (private_settings/main) */}
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSavingPrivate(true);
+              setPrivateFeedback(null);
+              try {
+                await updatePrivateSettings(privateForm);
+                setPrivateFeedback({
+                  type: 'success',
+                  text: 'Private operational settings saved strictly to private_settings/main.',
+                });
+              } catch (err: unknown) {
+                setPrivateFeedback({
+                  type: 'error',
+                  text: err instanceof Error ? err.message : 'Failed to save private settings.',
+                });
+              } finally {
+                setSavingPrivate(false);
+              }
+            }}
+            className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DDCA] shadow-xs space-y-5"
+          >
+            <div className="flex items-center justify-between border-b border-[#E8DDCA] pb-3">
+              <div>
+                <h3 className="font-serif text-lg font-bold text-[#244C37] flex items-center space-x-2">
+                  <ShieldCheck className="w-4 h-4 text-[#C99A45]" />
+                  <span>Private Operational &amp; Internal Settings</span>
+                </h3>
+                <p className="text-[11px] text-[#5E5750]">
+                  Stored in <code className="font-mono">private_settings/main</code> — never exposed to storefront visitors or non-admin users.
+                </p>
+              </div>
+              <button
+                type="submit"
+                disabled={savingPrivate}
+                className="px-4 py-2 bg-[#244C37] hover:bg-[#1A3828] text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 shadow-sm"
+              >
+                {savingPrivate ? 'Saving...' : 'Save Private Settings'}
+              </button>
+            </div>
+
+            {privateFeedback && (
+              <div
+                className={`p-3 rounded-xl text-xs font-semibold ${
+                  privateFeedback.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {privateFeedback.text}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-[#242821] block mb-1">
+                  Internal Alert Email (Private):
+                </label>
+                <input
+                  type="email"
+                  value={privateForm.internalNotificationEmail}
+                  onChange={(e) =>
+                    setPrivateForm({ ...privateForm, internalNotificationEmail: e.target.value })
+                  }
+                  placeholder="ops-alerts@private-domain.com"
+                  className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[#242821] block mb-1">
+                  Internal Dispatch Phone (Private):
+                </label>
+                <input
+                  type="text"
+                  value={privateForm.internalOpsPhone}
+                  onChange={(e) =>
+                    setPrivateForm({ ...privateForm, internalOpsPhone: e.target.value })
+                  }
+                  className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-[#242821] block mb-1">
+                  Low Stock Alert Threshold:
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={privateForm.lowStockAlertThreshold}
+                  onChange={(e) =>
+                    setPrivateForm({ ...privateForm, lowStockAlertThreshold: Number(e.target.value) })
+                  }
+                  className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[#242821] block mb-1">
+                  Internal Tax / NTN Reference:
+                </label>
+                <input
+                  type="text"
+                  value={privateForm.taxRegistrationNumber}
+                  onChange={(e) =>
+                    setPrivateForm({ ...privateForm, taxRegistrationNumber: e.target.value })
+                  }
+                  className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-[#242821] block mb-1">
+                Internal Finance &amp; Settlement Notes:
+              </label>
+              <textarea
+                rows={2}
+                value={privateForm.financeSettlementNotes}
+                onChange={(e) =>
+                  setPrivateForm({ ...privateForm, financeSettlementNotes: e.target.value })
+                }
+                className="w-full text-xs p-2.5 rounded-xl border border-[#E8DDCA] bg-[#F8F5ED]"
+              />
+            </div>
+
+            <label className="flex items-center space-x-2 cursor-pointer text-xs">
               <input
                 type="checkbox"
-                checked={settingsForm.codEnabled}
-                onChange={(e) => setSettingsForm({ ...settingsForm, codEnabled: e.target.checked })}
+                checked={privateForm.maintenanceMode}
+                onChange={(e) =>
+                  setPrivateForm({ ...privateForm, maintenanceMode: e.target.checked })
+                }
                 className="rounded text-[#244C37]"
               />
-              <span className="font-semibold text-[#242821]">Enable Cash on Delivery (COD)</span>
+              <span className="font-semibold text-[#242821]">Internal Operations Maintenance Flag</span>
             </label>
+          </form>
 
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settingsForm.announcementActive}
-                onChange={(e) => setSettingsForm({ ...settingsForm, announcementActive: e.target.checked })}
-                className="rounded text-[#244C37]"
-              />
-              <span className="font-semibold text-[#242821]">Show Top Announcement Bar</span>
-            </label>
+          {/* 7C. Explicit Non-Destructive Legacy Settings Migration */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DDCA] shadow-xs space-y-4">
+            <div className="border-b border-[#E8DDCA] pb-3">
+              <h3 className="font-serif text-lg font-bold text-[#244C37]">
+                Legacy <code className="font-mono text-sm">settings/main</code> Split Verification &amp; Migration
+              </h3>
+              <p className="text-xs text-[#5E5750] mt-1">
+                Explicit, non-destructive migration: preserves <code className="font-mono">settings/main</code> verbatim and never overwrites existing fields in <code className="font-mono">public_settings/main</code> or <code className="font-mono">private_settings/main</code>.
+              </p>
+            </div>
+
+            {settingsMigrationStatus && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-[#F8F5ED] border border-[#E8DDCA]">
+                  <span className="text-[10px] uppercase text-[#5E5750] block">public_settings/main</span>
+                  <span className="font-bold text-[#244C37]">
+                    {settingsMigrationStatus.hasPublicSettings ? 'Initialized' : 'Not yet created'}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-[#F8F5ED] border border-[#E8DDCA]">
+                  <span className="text-[10px] uppercase text-[#5E5750] block">private_settings/main</span>
+                  <span className="font-bold text-[#244C37]">
+                    {settingsMigrationStatus.hasPrivateSettings ? 'Initialized' : 'Not yet created'}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-[#F8F5ED] border border-[#E8DDCA]">
+                  <span className="text-[10px] uppercase text-[#5E5750] block">Legacy settings/main</span>
+                  <span className="font-bold text-[#244C37]">
+                    {settingsMigrationStatus.hasLegacySettings ? 'Present (preserved)' : 'None found'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                disabled={migratingSettings}
+                onClick={async () => {
+                  setMigratingSettings(true);
+                  setMigrationError(null);
+                  try {
+                    const report = await migrateLegacySettings({ dryRun: true });
+                    setMigrationReport(report);
+                  } catch (err: unknown) {
+                    setMigrationError(err instanceof Error ? err.message : 'Dry-run verification failed.');
+                  } finally {
+                    setMigratingSettings(false);
+                  }
+                }}
+                className="px-4 py-2 bg-[#F8F5ED] hover:bg-[#E8DDCA]/60 text-[#244C37] border border-[#E8DDCA] text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                {migratingSettings ? 'Checking...' : 'Verify Split Plan (Dry Run)'}
+              </button>
+
+              <button
+                type="button"
+                disabled={migratingSettings}
+                onClick={async () => {
+                  setMigratingSettings(true);
+                  setMigrationError(null);
+                  try {
+                    const report = await migrateLegacySettings({ dryRun: false, confirm: true });
+                    setMigrationReport(report);
+                  } catch (err: unknown) {
+                    setMigrationError(err instanceof Error ? err.message : 'Migration failed.');
+                  } finally {
+                    setMigratingSettings(false);
+                  }
+                }}
+                className="px-4 py-2 bg-[#C99A45] hover:bg-[#AA7F32] text-[#244C37] text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                Execute Non-Destructive Split Migration
+              </button>
+            </div>
+
+            {migrationError && (
+              <div className="p-3 rounded-xl bg-rose-50 text-rose-800 border border-rose-200 text-xs">
+                {migrationError}
+              </div>
+            )}
+
+            {migrationReport && (
+              <pre className="p-3 rounded-xl bg-[#1A2E22] text-[#E8DDCA] text-[11px] font-mono overflow-x-auto">
+                {JSON.stringify(migrationReport, null, 2)}
+              </pre>
+            )}
           </div>
-        </form>
+        </div>
       )}
 
       {/* TAB 8: IONOS SINGLE-HOSTING DEPLOYMENT SUITE (PHP 8.x + FIRESTORE) */}

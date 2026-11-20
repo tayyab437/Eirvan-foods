@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
+import { apiRequest } from '../services/apiClient';
 import {
   X,
   Send,
@@ -73,19 +74,13 @@ export const AiSommelierChat: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/chat', {
+      const data = await apiRequest<{ reply: string; modelUsed?: string }>('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           messages: newHistory.map((m) => ({ role: m.role, content: m.content })),
           role,
-        }),
+        },
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to get answer from advisor.');
-      }
 
       const assistantMsg: ChatMessage = {
         id: `reply-${Date.now()}`,

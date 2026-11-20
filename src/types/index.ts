@@ -219,7 +219,7 @@ export interface BlogPost {
   tags: string[];
 }
 
-export interface StoreSettings {
+export interface PublicStoreSettings {
   storeName: string;
   tagline: string;
   contactPhone: string;
@@ -237,6 +237,42 @@ export interface StoreSettings {
   };
   announcementBarMessage: string;
   announcementActive: boolean;
+}
+
+export type StoreSettings = PublicStoreSettings;
+
+export interface PrivateStoreSettings {
+  internalNotificationEmail: string;
+  internalOpsPhone: string;
+  financeSettlementNotes: string;
+  lowStockAlertThreshold: number;
+  taxRegistrationNumber: string;
+  maintenanceMode: boolean;
+  migratedFromLegacyAt?: string;
+  legacyPreservedFields?: Record<string, unknown>;
+  updatedAt?: string;
+  updatedByUid?: string;
+}
+
+export interface SettingsMigrationStatus {
+  hasPublicSettings: boolean;
+  hasPrivateSettings: boolean;
+  hasLegacySettings: boolean;
+}
+
+export interface SettingsMigrationReport {
+  success: boolean;
+  dryRun: boolean;
+  legacyFound: boolean;
+  legacyDocumentPreserved?: boolean;
+  publicTargetExisted?: boolean;
+  privateTargetExisted?: boolean;
+  publicKeysCopied: string[];
+  publicKeysSkippedExisting: string[];
+  privateKeysCopied: string[];
+  privateKeysSkippedExisting: string[];
+  legacyPreservedKeysCopied: string[];
+  message?: string;
 }
 export interface WholesaleInquiry {
   id: string;

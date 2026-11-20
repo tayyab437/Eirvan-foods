@@ -346,9 +346,9 @@
       },
       "required": ["code", "discountType", "discountValue", "minOrderAmount", "isActive"]
     },
-    "StoreSettings": {
-      "title": "StoreSettings",
-      "description": "Global store configuration parameters",
+    "PublicStoreSettings": {
+      "title": "PublicStoreSettings",
+      "description": "Strictly allowlisted public storefront configuration and checkout payment instructions (public_settings/main)",
       "type": "object",
       "properties": {
         "storeName": {
@@ -364,17 +364,17 @@
         "contactPhone": {
           "type": "string",
           "maxLength": 30,
-          "description": "Telephone helpline"
+          "description": "Public customer helpline"
         },
         "whatsappNumber": {
           "type": "string",
           "maxLength": 30,
-          "description": "WhatsApp concierge"
+          "description": "Public WhatsApp concierge"
         },
         "contactEmail": {
           "type": "string",
           "maxLength": 100,
-          "description": "Support email address"
+          "description": "Public customer support email address"
         },
         "freeShippingThreshold": {
           "type": "number",
@@ -390,7 +390,7 @@
         },
         "bankDetails": {
           "type": "object",
-          "description": "Direct bank transfer credentials and Raast ID"
+          "description": "Customer-facing merchant bank transfer and Raast deposit details"
         },
         "announcementBarMessage": {
           "type": "string",
@@ -403,6 +403,61 @@
         }
       },
       "required": ["storeName", "contactPhone", "whatsappNumber", "freeShippingThreshold", "standardShippingRate"]
+    },
+    "PrivateStoreSettings": {
+      "title": "PrivateStoreSettings",
+      "description": "Restricted administrative, operational, and internal financial settings (private_settings/main; never exposed publicly)",
+      "type": "object",
+      "properties": {
+        "internalNotificationEmail": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Internal admin order/alert email address"
+        },
+        "internalOpsPhone": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Internal warehouse/dispatch escalation phone"
+        },
+        "financeSettlementNotes": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Internal accounting reconciliation notes"
+        },
+        "lowStockAlertThreshold": {
+          "type": "number",
+          "description": "Admin dashboard low-stock alert threshold"
+        },
+        "taxRegistrationNumber": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "Internal business tax/NTN identifier"
+        },
+        "maintenanceMode": {
+          "type": "boolean",
+          "description": "Internal operational maintenance flag"
+        },
+        "migratedFromLegacyAt": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "ISO timestamp when legacy settings/main was explicitly migrated"
+        },
+        "legacyPreservedFields": {
+          "type": "object",
+          "description": "Non-public legacy fields archived read-only from settings/main"
+        },
+        "updatedAt": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Last admin modification timestamp"
+        },
+        "updatedByUid": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Firebase UID of the admin who updated private settings"
+        }
+      },
+      "required": ["lowStockAlertThreshold", "maintenanceMode"]
     },
     "WholesaleInquiry": {
       "title": "WholesaleInquiry",
@@ -524,11 +579,23 @@
       },
       "description": "Promotional vouchers and seasonal discount codes (admin read/write, backend public validate)"
     },
+    "/public_settings/{settingId}": {
+      "schema": {
+        "$ref": "PublicStoreSettings"
+      },
+      "description": "Strictly allowlisted public storefront settings and checkout payment instructions"
+    },
+    "/private_settings/{settingId}": {
+      "schema": {
+        "$ref": "PrivateStoreSettings"
+      },
+      "description": "Restricted internal administrative, operational, and financial settings (backend/admin only)"
+    },
     "/settings/{settingId}": {
       "schema": {
-        "$ref": "StoreSettings"
+        "$ref": "PublicStoreSettings"
       },
-      "description": "Global store operational policies and contact information"
+      "description": "Deprecated legacy store settings path locked to admin-get only and preserved read-only during migration"
     },
     "/wholesale_inquiries/{inquiryId}": {
       "schema": {

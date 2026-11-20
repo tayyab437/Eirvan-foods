@@ -162,13 +162,25 @@ return static function (array $container): void {
         return;
     }
 
-    // Settings & Admin Non-Destructive Backfill
+    // Settings, Private Operational Settings & Explicit Non-Destructive Backfill/Migration
     if ($method === 'GET' && $route === '/settings') {
         $send($container['settings']->getPublic());
         return;
     }
     if ($method === 'PUT' && $route === '/settings') {
         $send($container['settings']->updateAdmin($input));
+        return;
+    }
+    if ($method === 'GET' && $route === '/settings/private') {
+        $send($container['settings']->getPrivateAdmin());
+        return;
+    }
+    if ($method === 'PUT' && $route === '/settings/private') {
+        $send($container['settings']->updatePrivateAdmin($input));
+        return;
+    }
+    if ($method === 'POST' && $route === '/settings/migrate') {
+        $send($container['settings']->migrateLegacySettingsAdmin($input));
         return;
     }
     if ($method === 'POST' && $route === '/settings/backfill') {

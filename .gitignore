@@ -6,6 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+!.env.staging.example
 private/config/secrets.php
 private/credentials/*.json
 private/logs/*.log

@@ -59,13 +59,38 @@ export const db_initPublicSync = async (
   );
 
   const unsubSettings = onSnapshot(
-    doc(db, 'settings', 'main'),
+    doc(db, 'public_settings', 'main'),
     (docSnap) => {
       if (docSnap.exists()) {
-        onSettings(docSnap.data() as StoreSettings);
+        const raw = docSnap.data() as Record<string, any>;
+        const rawBank = raw?.bankDetails && typeof raw.bankDetails === 'object' ? raw.bankDetails : undefined;
+        const sanitized: Partial<StoreSettings> = {
+          ...(typeof raw.storeName === 'string' ? { storeName: raw.storeName } : {}),
+          ...(typeof raw.tagline === 'string' ? { tagline: raw.tagline } : {}),
+          ...(typeof raw.contactPhone === 'string' ? { contactPhone: raw.contactPhone } : {}),
+          ...(typeof raw.whatsappNumber === 'string' ? { whatsappNumber: raw.whatsappNumber } : {}),
+          ...(typeof raw.contactEmail === 'string' ? { contactEmail: raw.contactEmail } : {}),
+          ...(typeof raw.freeShippingThreshold === 'number' ? { freeShippingThreshold: raw.freeShippingThreshold } : {}),
+          ...(typeof raw.standardShippingRate === 'number' ? { standardShippingRate: raw.standardShippingRate } : {}),
+          ...(typeof raw.codEnabled === 'boolean' ? { codEnabled: raw.codEnabled } : {}),
+          ...(typeof raw.announcementBarMessage === 'string' ? { announcementBarMessage: raw.announcementBarMessage } : {}),
+          ...(typeof raw.announcementActive === 'boolean' ? { announcementActive: raw.announcementActive } : {}),
+          ...(rawBank
+            ? {
+                bankDetails: {
+                  bankName: String(rawBank.bankName ?? ''),
+                  accountTitle: String(rawBank.accountTitle ?? ''),
+                  accountNumber: String(rawBank.accountNumber ?? ''),
+                  iban: String(rawBank.iban ?? ''),
+                  raastId: String(rawBank.raastId ?? ''),
+                },
+              }
+            : {}),
+        };
+        onSettings(sanitized as StoreSettings);
       }
     },
-    (error) => onError(error, 'settings/main')
+    (error) => onError(error, 'public_settings/main')
   );
 
   const unsubCategories = onSnapshot(

@@ -90,6 +90,12 @@ export const CheckoutView: React.FC = () => {
     setIdempotencyKey(createIdempotencyKey());
   }, [orderSignature]);
 
+  React.useEffect(() => {
+    if (settings.codEnabled === false && paymentMethod === 'COD') {
+      setPaymentMethod('BankTransfer');
+    }
+  }, [settings.codEnabled, paymentMethod]);
+
   if (cart.length === 0) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
@@ -366,36 +372,38 @@ export const CheckoutView: React.FC = () => {
             </div>
 
             <div className="space-y-3 pt-1">
-              <label
-                onClick={() => setPaymentMethod('COD')}
-                className={`p-4 rounded-2xl border flex items-start space-x-3.5 cursor-pointer transition-all ${
-                  paymentMethod === 'COD'
-                    ? 'border-[#344B36] bg-[#F7F4EC]'
-                    : 'border-[#E7DDCA] bg-white'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="payment"
-                  checked={paymentMethod === 'COD'}
-                  onChange={() => setPaymentMethod('COD')}
-                  className="mt-1 text-[#344B36]"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <Banknote className="w-4 h-4 text-[#344B36]" />
-                    <span className="text-sm font-bold text-[#302A25]">
-                      Cash on Delivery (COD)
-                    </span>
-                    <span className="bg-[#A5AD91]/25 text-[#344B36] text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                      Standard
-                    </span>
+              {settings.codEnabled !== false && (
+                <label
+                  onClick={() => setPaymentMethod('COD')}
+                  className={`p-4 rounded-2xl border flex items-start space-x-3.5 cursor-pointer transition-all ${
+                    paymentMethod === 'COD'
+                      ? 'border-[#344B36] bg-[#F7F4EC]'
+                      : 'border-[#E7DDCA] bg-white'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="payment"
+                    checked={paymentMethod === 'COD'}
+                    onChange={() => setPaymentMethod('COD')}
+                    className="mt-1 text-[#344B36]"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <Banknote className="w-4 h-4 text-[#344B36]" />
+                      <span className="text-sm font-bold text-[#302A25]">
+                        Cash on Delivery (COD)
+                      </span>
+                      <span className="bg-[#A5AD91]/25 text-[#344B36] text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        Standard
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#5E5750] mt-1 leading-relaxed">
+                      Pay in cash upon doorstep delivery by courier across all cities in Pakistan.
+                    </p>
                   </div>
-                  <p className="text-xs text-[#5E5750] mt-1 leading-relaxed">
-                    Pay in cash upon doorstep delivery by courier across all cities in Pakistan.
-                  </p>
-                </div>
-              </label>
+                </label>
+              )}
 
               <label
                 onClick={() => setPaymentMethod('BankTransfer')}

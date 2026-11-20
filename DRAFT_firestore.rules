@@ -58,11 +58,62 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(ingredientId) && isAdmin();
     }
 
-    // 4. Settings Collection (Public storefront get on 'main', Admin list/write only)
-    match /settings/{settingId} {
+    function isValidBankDetails(bd) {
+      return bd is map
+        && bd.keys().hasOnly(['bankName', 'accountTitle', 'accountNumber', 'iban', 'raastId'])
+        && (!('bankName' in bd) || (bd.bankName is string && bd.bankName.size() <= 100))
+        && (!('accountTitle' in bd) || (bd.accountTitle is string && bd.accountTitle.size() <= 100))
+        && (!('accountNumber' in bd) || (bd.accountNumber is string && bd.accountNumber.size() <= 60))
+        && (!('iban' in bd) || (bd.iban is string && bd.iban.size() <= 60))
+        && (!('raastId' in bd) || (bd.raastId is string && bd.raastId.size() <= 60));
+    }
+
+    function isValidPublicSettings(data) {
+      return data is map
+        && data.keys().hasOnly([
+          'storeName',
+          'tagline',
+          'contactPhone',
+          'whatsappNumber',
+          'contactEmail',
+          'freeShippingThreshold',
+          'standardShippingRate',
+          'codEnabled',
+          'bankDetails',
+          'announcementBarMessage',
+          'announcementActive'
+        ])
+        && (!('storeName' in data) || (data.storeName is string && data.storeName.size() <= 100))
+        && (!('tagline' in data) || (data.tagline is string && data.tagline.size() <= 200))
+        && (!('contactPhone' in data) || (data.contactPhone is string && data.contactPhone.size() <= 30))
+        && (!('whatsappNumber' in data) || (data.whatsappNumber is string && data.whatsappNumber.size() <= 30))
+        && (!('contactEmail' in data) || (data.contactEmail is string && data.contactEmail.size() <= 100))
+        && (!('freeShippingThreshold' in data) || (data.freeShippingThreshold is number && data.freeShippingThreshold >= 0))
+        && (!('standardShippingRate' in data) || (data.standardShippingRate is number && data.standardShippingRate >= 0))
+        && (!('codEnabled' in data) || data.codEnabled is bool)
+        && (!('announcementBarMessage' in data) || (data.announcementBarMessage is string && data.announcementBarMessage.size() <= 300))
+        && (!('announcementActive' in data) || data.announcementActive is bool)
+        && (!('bankDetails' in data) || isValidBankDetails(data.bankDetails));
+    }
+
+    // 4a. Public Storefront Settings (Strictly allowlisted public display & checkout payment fields only)
+    match /public_settings/{settingId} {
       allow get: if settingId == 'main' || isAdmin();
       allow list: if isAdmin();
-      allow create, update, delete: if isValidId(settingId) && isAdmin();
+      allow create, update: if settingId == 'main' && isAdmin() && isValidPublicSettings(request.resource.data);
+      allow delete: if false;
+    }
+
+    // 4b. Private Operational & Financial Settings (Admin read only; writes via PHP backend Service Account only)
+    match /private_settings/{settingId} {
+      allow get: if isAdmin();
+      allow list, create, update, delete: if false;
+    }
+
+    // 4c. Legacy Settings Collection (LOCKED DOWN: zero public or non-admin customer reads/writes)
+    match /settings/{settingId} {
+      allow get: if isAdmin();
+      allow list, create, update, delete: if false;
     }
 
     // 5. Orders Collection (Zero public access; Admin list/get only; ALL creates/updates via PHP backend)

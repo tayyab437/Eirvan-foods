@@ -8,6 +8,9 @@ import {
   Order,
   OrderStatus,
   StoreSettings,
+  PrivateStoreSettings,
+  SettingsMigrationStatus,
+  SettingsMigrationReport,
   Coupon,
   CustomerReview,
   BlogPost,
@@ -21,6 +24,7 @@ import {
 import {
   INITIAL_PRODUCTS,
   INITIAL_SETTINGS,
+  INITIAL_PRIVATE_SETTINGS,
   INITIAL_COUPONS,
   INITIAL_REVIEWS,
   INITIAL_BLOGS,
@@ -101,6 +105,8 @@ interface StoreContextType {
   reviewsPagination: AdminPaginationState;
   wholesalePagination: AdminPaginationState;
   settings: StoreSettings;
+  privateSettings: PrivateStoreSettings | null;
+  settingsMigrationStatus: SettingsMigrationStatus | null;
   wishlist: string[];
   searchQuery: string;
   selectedProduct: Product | null;
@@ -147,6 +153,8 @@ interface StoreContextType {
   moderateReview: (reviewId: string, status: CustomerReview['status']) => Promise<void>;
   deleteReview: (reviewId: string) => Promise<void>;
   updateSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
+  updatePrivateSettings: (newSettings: Partial<PrivateStoreSettings>) => Promise<void>;
+  migrateLegacySettings: (options: { dryRun: boolean; confirm?: boolean }) => Promise<SettingsMigrationReport>;
   updateProduct: (updated: Product) => Promise<void>;
   addNewProduct: (product: Product) => Promise<void>;
   deleteProduct: (productId: string) => Promise<void>;
@@ -190,6 +198,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [orders, setOrders] = useState<Order[]>([]);
   const [wholesaleInquiries, setWholesaleInquiries] = useState<WholesaleInquiry[]>([]);
   const [settings, setSettings] = useState<StoreSettings>(INITIAL_SETTINGS);
+  const [privateSettings, setPrivateSettings] = useState<PrivateStoreSettings | null>(null);
+  const [settingsMigrationStatus, setSettingsMigrationStatus] = useState<SettingsMigrationStatus | null>(null);
   const [coupons, setCoupons] = useState<Coupon[]>(INITIAL_COUPONS);
   const [reviews, setReviews] = useState<CustomerReview[]>(INITIAL_REVIEWS);
   const [blogs] = useState<BlogPost[]>(INITIAL_BLOGS);
@@ -324,10 +334,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsFirebaseSyncing(true);
         const { db_initPublicSync } = await import('../services/firestoreService');
 
+        let receivedPublicSettingsSnapshot = false;
         const stopSync = await db_initPublicSync(
           (prods) => setProducts(prods),
           (revs) => setReviews(revs),
-          (setts) => setSettings(setts),
+          (setts) => {
+            receivedPublicSettingsSnapshot = true;
+            setSettings({
+              ...INITIAL_SETTINGS,
+              ...setts,
+              bankDetails: {
+                ...INITIAL_SETTINGS.bankDetails,
+                ...(setts.bankDetails || {}),
+              },
+            });
+          },
           (cats) => setCategoriesList(cats),
           (boxes) => setShahiMixBoxes(boxes),
           (ings) => setShahiMixIngredients(ings),
@@ -335,6 +356,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             console.warn(`[Firestore Public Sync] Listener warning on "${path}":`, error);
           }
         );
+
+        // Non-destructive pre-migration compatibility fallback via strictly filtered PHP GET /api/settings
+        apiRequest<{ settings?: Partial<StoreSettings> | null }>('/api/settings')
+          .then((res) => {
+            if (!mounted || receivedPublicSettingsSnapshot || !res?.settings) return;
+            setSettings((prev) => ({
+              ...prev,
+              ...res.settings,
+              bankDetails: {
+                ...prev.bankDetails,
+                ...(res.settings?.bankDetails || {}),
+              },
+            }));
+          })
+          .catch(() => {
+            // Optional fallback only when PHP API is mounted
+          });
 
         if (!mounted) {
           stopSync();
@@ -357,7 +395,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  // 3. Admin-Only Protected Paginated API Sync (Orders, Coupons, All Reviews, Wholesale Inquiries)
+  // 3. Admin-Only Protected Paginated API Sync (Orders, Coupons, All Reviews, Wholesale Inquiries, Private Settings)
   const fetchInitialAdminCollections = async (isMountedCheck: () => boolean = () => true) => {
     setOrdersPagination((prev) => ({ ...prev, refreshing: true }));
     setCouponsPagination((prev) => ({ ...prev, refreshing: true }));
@@ -365,7 +403,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setWholesalePagination((prev) => ({ ...prev, refreshing: true }));
 
     try {
-      const [ordRes, coupRes, revRes, whlRes] = await Promise.allSettled([
+      const [ordRes, coupRes, revRes, whlRes, privSettRes] = await Promise.allSettled([
         apiRequest<{ orders: Order[]; nextPageToken?: string | null; hasMore?: boolean }>(
           `/api/orders?limit=${ADMIN_PAGE_LIMIT}`,
           { requireAuth: true }
@@ -382,9 +420,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           `/api/wholesale?limit=${ADMIN_PAGE_LIMIT}`,
           { requireAuth: true }
         ),
+        apiRequest<{
+          privateSettings?: PrivateStoreSettings;
+          migrationStatus?: SettingsMigrationStatus;
+        }>('/api/settings/private', { requireAuth: true }),
       ]);
 
       if (!isMountedCheck()) return;
+
+      if (privSettRes.status === 'fulfilled' && privSettRes.value) {
+        if (privSettRes.value.privateSettings) {
+          setPrivateSettings({
+            ...INITIAL_PRIVATE_SETTINGS,
+            ...privSettRes.value.privateSettings,
+          });
+        }
+        if (privSettRes.value.migrationStatus) {
+          setSettingsMigrationStatus(privSettRes.value.migrationStatus);
+        }
+      }
 
       if (ordRes.status === 'fulfilled' && Array.isArray(ordRes.value.orders)) {
         setOrders(ordRes.value.orders);
@@ -449,6 +503,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setOrders([]);
       setWholesaleInquiries([]);
       setCoupons([]);
+      setPrivateSettings(null);
+      setSettingsMigrationStatus(null);
       setOrdersPagination(DEFAULT_PAGINATION);
       setCouponsPagination(DEFAULT_PAGINATION);
       setReviewsPagination(DEFAULT_PAGINATION);
@@ -855,8 +911,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       body: newSettings,
     });
     if (res?.settings) {
-      setSettings(res.settings);
+      setSettings((prev) => ({
+        ...prev,
+        ...res.settings,
+        bankDetails: {
+          ...prev.bankDetails,
+          ...(res.settings.bankDetails || {}),
+        },
+      }));
     }
+  };
+
+  const updatePrivateSettings = async (newSettings: Partial<PrivateStoreSettings>) => {
+    const res = await apiRequest<{ privateSettings: PrivateStoreSettings }>('/api/settings/private', {
+      method: 'PUT',
+      requireAuth: true,
+      body: newSettings,
+    });
+    if (res?.privateSettings) {
+      setPrivateSettings({
+        ...INITIAL_PRIVATE_SETTINGS,
+        ...res.privateSettings,
+      });
+    }
+  };
+
+  const migrateLegacySettings = async (options: { dryRun: boolean; confirm?: boolean }) => {
+    const res = await apiRequest<SettingsMigrationReport>('/api/settings/migrate', {
+      method: 'POST',
+      requireAuth: true,
+      body: options,
+    });
+    if (!options.dryRun) {
+      await fetchInitialAdminCollections();
+    }
+    return res;
   };
 
   const updateProduct = async (updated: Product) => {
@@ -1101,6 +1190,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         reviewsPagination,
         wholesalePagination,
         settings,
+        privateSettings,
+        settingsMigrationStatus,
         wishlist,
         searchQuery,
         selectedProduct,
@@ -1138,6 +1229,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         moderateReview,
         deleteReview,
         updateSettings,
+        updatePrivateSettings,
+        migrateLegacySettings,
         updateProduct,
         addNewProduct,
         deleteProduct,

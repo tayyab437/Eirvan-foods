@@ -23,13 +23,23 @@ final class LoggerService
         'authorization',
         'iban',
         'accountnumber',
+        'accounttitle',
+        'bankname',
+        'raastid',
+        'bankdetails',
+        'paymentreference',
         'trackingtoken',
         'trackingtokenhash',
         'phone',
         'customerphone',
+        'customername',
         'email',
         'customeremail',
         'address',
+        'internalnotificationemail',
+        'internalopsphone',
+        'financesettlementnotes',
+        'taxregistrationnumber',
     ];
 
     public function __construct(string $logsDir)

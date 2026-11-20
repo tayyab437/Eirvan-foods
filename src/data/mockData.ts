@@ -1,4 +1,4 @@
-import { Product, StoreSettings, Coupon, CustomerReview, BlogPost, CategoryItem, ShahiMixBox, ShahiMixIngredient, UnboxingReview } from '../types';
+import { Product, StoreSettings, PrivateStoreSettings, Coupon, CustomerReview, BlogPost, CategoryItem, ShahiMixBox, ShahiMixIngredient, UnboxingReview } from '../types';
 
 export const INITIAL_UNBOXING_REVIEWS: UnboxingReview[] = [
   {
@@ -248,6 +248,19 @@ export const INITIAL_SETTINGS: StoreSettings = {
   },
   announcementBarMessage: '🚚 Nationwide Delivery Across Pakistan • FREE Shipping on Orders Over Rs. 3,500 • Fresh 2026 Winter Harvest',
   announcementActive: true,
+};
+
+export const INITIAL_PRIVATE_SETTINGS: PrivateStoreSettings = {
+  internalNotificationEmail: '',
+  internalOpsPhone: '',
+  financeSettlementNotes: '',
+  lowStockAlertThreshold: 10,
+  taxRegistrationNumber: '',
+  maintenanceMode: false,
+  migratedFromLegacyAt: '',
+  legacyPreservedFields: {},
+  updatedAt: '',
+  updatedByUid: '',
 };
 
 export const INITIAL_COUPONS: Coupon[] = [

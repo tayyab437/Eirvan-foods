@@ -99,12 +99,14 @@ final class OrderController
                     }
                 }
 
-                // 1. Load trusted store settings
-                $settings = $this->firestore->getDocument('settings', 'main', $tx) ?? [
-                    'freeShippingThreshold' => 3500,
-                    'standardShippingRate' => 250,
-                    'codEnabled' => true,
-                ];
+                // 1. Load trusted public storefront settings (with non-destructive fallback to legacy settings/main)
+                $settings = $this->firestore->getDocument('public_settings', 'main', $tx)
+                    ?? $this->firestore->getDocument('settings', 'main', $tx)
+                    ?? [
+                        'freeShippingThreshold' => 3500,
+                        'standardShippingRate' => 250,
+                        'codEnabled' => true,
+                    ];
 
                 if ($paymentMethod === 'COD' && isset($settings['codEnabled']) && $settings['codEnabled'] === false) {
                     throw new RuntimeException('VALIDATION:Cash on Delivery is currently disabled.');
@@ -220,6 +222,7 @@ final class OrderController
                         'imageUrl' => (string) ($prod['imageUrl'] ?? ''),
                     ];
                 }
+                unset($prod);
 
                 // Queue optimistic product stock updates
                 foreach ($productCache as $pid => $prodDoc) {
@@ -784,9 +787,11 @@ final class OrderController
                 $totalGrams += $portionGrams;
                 $descParts[] = ($ing['name'] ?? 'Item') . ' (' . ($matchedPortion['weight'] ?? '') . ')';
             }
+            unset($ing);
 
             $unitPrice = (int) round((float) ($boxDoc['basePrice'] ?? 0)) + $fillingsTotal;
             $lineSubtotal = $unitPrice * $qty;
+            unset($boxDoc);
 
             return [
                 'lineSubtotal' => $lineSubtotal,
@@ -855,6 +860,7 @@ final class OrderController
                 $totalGrams += $gramsPerUnit * $multiplier;
                 $descParts[] = ($ing['name'] ?? 'Item') . ' (' . ($gramsPerUnit * $multiplier) . 'g)';
             }
+            unset($ing);
 
             $lineSubtotal = $mixPrice * $qty;
             return [

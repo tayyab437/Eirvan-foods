@@ -45,9 +45,34 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
-          navigateFallbackDenylist: [/^\/api\//],
+          navigateFallbackDenylist: [/\/api\//],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
           runtimeCaching: [
+            {
+              urlPattern: /\/api\//i,
+              handler: 'NetworkOnly',
+              method: 'GET',
+            },
+            {
+              urlPattern: /\/api\//i,
+              handler: 'NetworkOnly',
+              method: 'POST',
+            },
+            {
+              urlPattern: /\/api\//i,
+              handler: 'NetworkOnly',
+              method: 'PUT',
+            },
+            {
+              urlPattern: /\/api\//i,
+              handler: 'NetworkOnly',
+              method: 'PATCH',
+            },
+            {
+              urlPattern: /\/api\//i,
+              handler: 'NetworkOnly',
+              method: 'DELETE',
+            },
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: 'CacheFirst',
